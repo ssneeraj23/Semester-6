@@ -11,10 +11,10 @@
 #define bs 25
 
 
+
 int readFlt(char *buff, int true_size, float *ans)
 {
-   
-    
+
     float value=0;
     float powerup=1;
     float powerdown=0.1;
@@ -87,12 +87,16 @@ int main()
     for(int i=0;i<bs;++i)exp[i]='\0';
     // printf("before loop\n");
     int j;
-    int first_read=0,first_op=0;
+    int first_read=0,first_op=0,bfirst_op;
     char op;
     int num_read=0;
     int nums;
     char num[20];
     float fval,curr_val;
+    int bopen=0;
+    int bf_read=0;
+    char bf_op;
+    float bfval,bcurr_val;
     while(1)
     {
         rs=recv(newsockfd,exp,bs,0);
@@ -101,6 +105,122 @@ int main()
         for(int i=0;i<rs;++i)
         {
             //printf("%c",exp[i]);
+            if(exp[i]=='(')
+                {
+                    bopen=1;
+                    bf_read=0;
+                    bfirst_op=0;
+                    continue;
+                }
+            if(bopen)
+            {
+                if(exp[i]==' ')continue;
+                if(exp[i]==')')
+            {
+                bopen=0;
+                 if(bfirst_op==0)
+                {
+                    curr_val=bcurr_val;
+                    continue;
+                }
+                else
+                {
+                    if(bf_op=='+')bfval+=bcurr_val;
+                    if(bf_op=='-')bfval-=bcurr_val;
+                    if(bf_op=='*')bfval*=bcurr_val;
+                    if(bf_op=='/')bfval/=bcurr_val;
+                }
+                curr_val=bfval;
+                continue;
+            }
+                if((exp[i]=='+'||exp[i]=='-')||((exp[i]=='*'||exp[i]=='/')||exp[i]==')'))
+                {
+                if(num_read==1)
+                {
+                    num_read=0;
+                    readFlt(num,nums,&bcurr_val);
+                        if(bf_read==0)
+                        {
+                            bf_read=1;
+                            bfval=bcurr_val;
+                        }
+                }
+                if(bfirst_op==0)
+                {
+                    bfirst_op=1;
+                }
+                else
+                {
+                    if(bf_op=='+')bfval+=bcurr_val;
+                    if(bf_op=='-')bfval-=bcurr_val;
+                    if(bf_op=='*')bfval*=bcurr_val;
+                    if(bf_op=='/')bfval/=bcurr_val;
+                }
+                bf_op=exp[i];
+            }
+            else
+            {
+                
+                if(num_read==0)
+                {
+                    nums=0;
+                    num_read=1;
+                    for(j=i;j<rs;++j)
+                    {
+                        if((exp[j]>='0'&&exp[j]<='9')||exp[j]=='.')
+                        {
+                            num[nums]=exp[j];
+                            ++nums;
+                        }
+                        else
+                        {
+                            num_read=0;
+                            break;
+                        }
+                    }
+                    i=j-1;
+                    if(num_read==0)
+                    {
+                        readFlt(num,nums,&bcurr_val);
+                        if(bf_read==0)
+                        {
+                            bf_read=1;
+                            bfval=bcurr_val;
+                        }
+                    }
+                }
+                else{
+
+                    for(j=i;j<rs;++j)
+                    {
+                        if((exp[j]>='0'&&exp[j]<='9')||exp[j]=='.')
+                        {
+                            num[nums]=exp[j];
+                            ++nums;
+                        }
+                        else
+                        {
+                            num_read=0;
+                            break;
+                        }
+                    }
+                    i=j-1;
+                    if(num_read==0)
+                    {
+                        readFlt(num,nums,&bcurr_val);
+                        if(bf_read==0)
+                        {
+                            bf_read=1;
+                            bfval=bcurr_val;
+                        }
+                    }
+                }
+            }
+            continue;
+            }
+            
+
+            //old
             if(exp[i]==' ')continue;
             if(exp[i]=='\0')
             {
@@ -144,6 +264,7 @@ int main()
             }
             else
             {
+                
                 if(num_read==0)
                 {
                     nums=0;
