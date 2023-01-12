@@ -135,6 +135,14 @@ int main()
             }
                 if((exp[i]=='+'||exp[i]=='-')||((exp[i]=='*'||exp[i]=='/')||exp[i]==')'))
                 {
+                    if(bfirst_op==0&&bf_read==0)
+                {
+                    bfirst_op=1;
+                    bf_read=1;
+                    bfval=0;
+                }
+                else
+                {
                 if(num_read==1)
                 {
                     num_read=0;
@@ -155,6 +163,7 @@ int main()
                     if(bf_op=='-')bfval-=bcurr_val;
                     if(bf_op=='*')bfval*=bcurr_val;
                     if(bf_op=='/')bfval/=bcurr_val;
+                }
                 }
                 bf_op=exp[i];
             }
@@ -239,6 +248,14 @@ int main()
             }
             if((exp[i]=='+'||exp[i]=='-')||(exp[i]=='*'||exp[i]=='/'))
             {
+                if(first_op==0&&first_read==0)
+                {
+                    first_op=1;
+                    first_read=1;
+                    fval=0;
+                }
+                else
+                {
                 if(num_read==1)
                 {
                     num_read=0;
@@ -259,6 +276,7 @@ int main()
                     if(op=='-')fval-=curr_val;
                     if(op=='*')fval*=curr_val;
                     if(op=='/')fval/=curr_val;
+                }
                 }
                 op=exp[i];
             }
