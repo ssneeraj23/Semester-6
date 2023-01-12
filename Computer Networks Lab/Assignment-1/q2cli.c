@@ -9,6 +9,9 @@
 #include <unistd.h>
 #include <time.h>
 #define bs 20
+
+
+
 int main()
 {
 	int sockfd,sendsize;

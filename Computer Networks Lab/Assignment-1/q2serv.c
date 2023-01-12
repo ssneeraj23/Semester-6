@@ -9,6 +9,54 @@
 #include <unistd.h>
 #include <time.h>
 #define bs 25
+
+
+int readFlt(char *buff, int true_size, float *ans)
+{
+   
+    
+    float value=0;
+    float powerup=1;
+    float powerdown=0.1;
+    int dot=50;
+    for(int i=0;i<true_size;++i)
+    {
+        if(buff[i]=='.')
+        {
+            dot=i;
+            break;
+        }
+    }
+    int point;
+    if(dot==50)
+    {
+        point=true_size-1;
+    }
+    else point=dot-1;
+    for(int i=point;i>=0;--i)
+    {
+         if(i==0)
+         {
+            if(buff[0]=='+'||buff[0]=='-')break;
+            value=value+((int)(buff[i]-'0'))*powerup;
+            break;
+         }
+         value=value+((int)(buff[i]-'0'))*powerup;
+         powerup*=10;
+    }
+    point=dot+1;
+    for(int i=point;i<=true_size-1;++i)
+    {
+        
+        value=value+((float)(buff[i]-'0'))*powerdown;
+        powerdown/=10;
+    }
+    if(buff[0]=='-')value*=-1;
+    *ans=value;
+    return value;
+}
+
+
 int main()
 {
 
@@ -38,22 +86,128 @@ int main()
 		}
     for(int i=0;i<bs;++i)exp[i]='\0';
     // printf("before loop\n");
+    int j;
+    int first_read=0,first_op=0;
+    char op;
+    int num_read=0;
+    int nums;
+    char num[20];
+    float fval,curr_val;
     while(1)
     {
         rs=recv(newsockfd,exp,bs,0);
-        if(rs==0)break;
+        if(rs<=0)break;
+        
+        for(int i=0;i<rs;++i)
+        {
+            //printf("%c",exp[i]);
+            if(exp[i]==' ')continue;
+            if(exp[i]=='\0')
+            {
+                if(first_op==0)
+                {
+                    break;
+                }
+                else
+                {
+                    if(op=='+')fval+=curr_val;
+                    if(op=='-')fval-=curr_val;
+                    if(op=='*')fval*=curr_val;
+                    if(op=='/')fval/=curr_val;
+                }
+                break;
+            }
+            if((exp[i]=='+'||exp[i]=='-')||(exp[i]=='*'||exp[i]=='/'))
+            {
+                if(num_read==1)
+                {
+                    num_read=0;
+                    readFlt(num,nums,&curr_val);
+                        if(first_read==0)
+                        {
+                            first_read=1;
+                            fval=curr_val;
+                        }
+                }
+                if(first_op==0)
+                {
+                    first_op=1;
+                }
+                else
+                {
+                    if(op=='+')fval+=curr_val;
+                    if(op=='-')fval-=curr_val;
+                    if(op=='*')fval*=curr_val;
+                    if(op=='/')fval/=curr_val;
+                }
+                op=exp[i];
+            }
+            else
+            {
+                if(num_read==0)
+                {
+                    nums=0;
+                    num_read=1;
+                    for(j=i;j<rs;++j)
+                    {
+                        if((exp[j]>='0'&&exp[j]<='9')||exp[j]=='.')
+                        {
+                            num[nums]=exp[j];
+                            ++nums;
+                        }
+                        else
+                        {
+                            num_read=0;
+                            break;
+                        }
+                    }
+                    i=j-1;
+                    if(num_read==0)
+                    {
+                        readFlt(num,nums,&curr_val);
+                        if(first_read==0)
+                        {
+                            first_read=1;
+                            fval=curr_val;
+                        }
+                    }
+                }
+                else{
+
+                    for(j=i;j<rs;++j)
+                    {
+                        if((exp[j]>='0'&&exp[j]<='9')||exp[j]=='.')
+                        {
+                            num[nums]=exp[j];
+                            ++nums;
+                        }
+                        else
+                        {
+                            num_read=0;
+                            break;
+                        }
+                    }
+                    i=j-1;
+                    if(num_read==0)
+                    {
+                        readFlt(num,nums,&curr_val);
+                        if(first_read==0)
+                        {
+                            first_read=1;
+                            fval=curr_val;
+                        }
+                    }
+                }
+            }
+        }
         if(exp[rs-1]=='\0')
         {
             
-            printf("%s \n",exp);
             
             break;
         }
-        for(int i=0;i<rs;++i)
-        {
-            printf("%c",exp[i]);
-        }
     }
+    printf("the answer is %f\n",fval);
     // printf("out of loop\n");
     // printf("The new is %s\n",new);
     send(newsockfd,new,5,0);
