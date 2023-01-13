@@ -29,6 +29,8 @@ int main()
 	}
     listen(sockfd, 5);
     clilen = sizeof(cli_addr);
+    while(1)
+    {
     newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr,&clilen) ;
     if (newsockfd < 0) {
 			perror("Accept error\n");
@@ -37,9 +39,10 @@ int main()
     time_t t = time(NULL);
     struct tm *tm = localtime(&t);
     size_t ret = strftime(mytime, sizeof(mytime), "%c", tm);
-    printf("%s\n", mytime);
+    //printf("%s\n", mytime);
     send(newsockfd, mytime, 64, 0);
     close(newsockfd);
+    }
     close(sockfd);
 	return 0;
 }

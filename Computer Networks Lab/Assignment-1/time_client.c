@@ -29,7 +29,7 @@ int main()
 		exit(0);
 	}
     recv(sockfd,servtime,64,0);
-    printf("Well the time on the server is \n");
+    printf("Well, the time on the server is \n");
     printf("%s",servtime);
     printf("\n");
     close(sockfd);
