@@ -14,7 +14,7 @@
 
 int readFlt(char *buff, int true_size, float *ans)
 {
-
+    
     float value=0;
     float powerup=1;
     float powerdown=0.1;
@@ -60,8 +60,8 @@ int readFlt(char *buff, int true_size, float *ans)
 int main()
 {
 
-    char new[]="none\n";
-
+    char final_ans[20];
+    char num[20];
 	int sockfd,newsockfd,clilen,rs;
     struct sockaddr_in	cli_addr, serv_addr;
     char exp[bs];
@@ -79,6 +79,9 @@ int main()
 	}
     listen(sockfd, 5);
     clilen = sizeof(cli_addr);
+    while(1)
+    {
+    for(int i=0;i<20;++i)final_ans[i]='\0';
     newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr,&clilen);
     if (newsockfd < 0) {
 			perror("Accept error\n");
@@ -91,7 +94,6 @@ int main()
     char op;
     int num_read=0;
     int nums;
-    char num[20];
     float fval,curr_val;
     int bopen=0;
     int bf_read=0;
@@ -101,7 +103,6 @@ int main()
     {
         rs=recv(newsockfd,exp,bs,0);
         if(rs<=0)break;
-        
         for(int i=0;i<rs;++i)
         {
             //printf("%c",exp[i]);
@@ -341,16 +342,14 @@ int main()
         }
         if(exp[rs-1]=='\0')
         {
-            
-            
             break;
         }
     }
-    printf("the answer is %f\n",fval);
-    // printf("out of loop\n");
-    // printf("The new is %s\n",new);
-    send(newsockfd,new,5,0);
+    //printf("the answer is %f\n",fval);
+    sprintf(final_ans,"%f",fval);
+    send(newsockfd,final_ans,20,0);
     close(newsockfd);
+    }
     close(sockfd);
 	return 0;
 }
