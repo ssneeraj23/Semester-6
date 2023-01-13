@@ -10,30 +10,29 @@
 #include <time.h>
 #define bs 20
 
-
-
 int main()
 {
     int done=0;
     int first_pack;
     int term=0;
+    int sockfd,sendsize;
+    struct sockaddr_in serv_addr;
+    char exp[bs];
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		perror("Cannot create socket\n");
+		exit(0);
+	}
+    serv_addr.sin_family		= AF_INET;
+	inet_aton("127.0.0.1", &serv_addr.sin_addr);
+	serv_addr.sin_port		= htons(20000);
+        if ((connect(sockfd, (struct sockaddr *) &serv_addr,
+						sizeof(serv_addr))) < 0) {
+		perror("Unable to connect to server\n");
+		exit(0);
+	}
     while(1)
     {
-        int sockfd,sendsize;
-        struct sockaddr_in serv_addr;
-        char exp[bs];
-        if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-	    	perror("Cannot create socket\n");
-	    	exit(0);
-	    }
-        serv_addr.sin_family		= AF_INET;
-	    inet_aton("127.0.0.1", &serv_addr.sin_addr);
-	    serv_addr.sin_port		= htons(20000);
-            if ((connect(sockfd, (struct sockaddr *) &serv_addr,
-	    					sizeof(serv_addr))) < 0) {
-	    	perror("Unable to connect to server\n");
-	    	exit(0);
-	    }
+        
         first_pack=0;
         printf("Enter the expression to be evaluated by the mighty server\n");
     while(1)
@@ -71,8 +70,7 @@ int main()
     printf("Well the answer (as told by the ""Mighty Server"") is \n");
     printf("%s",exp);
     printf("\n");
-    close(sockfd);
     }
-    
+    close(sockfd);
 	return 0;
 }

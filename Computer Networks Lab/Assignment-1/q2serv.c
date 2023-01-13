@@ -10,7 +10,11 @@
 #include <time.h>
 #define bs 25
 
-
+/* The client connect to the server a new connection is created and the same connection
+   is used for all the expressions that is sent by the client
+   and when the user enters -1 on client then client closes the connection and then server 
+   waits for new accept.
+*/
 
 int readFlt(char *buff, int true_size, float *ans)
 {
@@ -62,6 +66,7 @@ int main()
 
     char final_ans[20];
     char num[20];
+    int newcon=1;
 	int sockfd,newsockfd,clilen,rs;
     struct sockaddr_in	cli_addr, serv_addr;
     char exp[bs];
@@ -82,13 +87,16 @@ int main()
     while(1)
     {
     for(int i=0;i<20;++i)final_ans[i]='\0';
-    newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr,&clilen);
-    if (newsockfd < 0) {
+    if(newcon==1)
+    {
+        newcon=0;
+        newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr,&clilen);
+        if (newsockfd < 0) {
 			perror("Accept error\n");
 			exit(0);
 		}
+    }    
     for(int i=0;i<bs;++i)exp[i]='\0';
-    // printf("before loop\n");
     int j;
     int first_read=0,first_op=0,bfirst_op;
     char op;
@@ -102,10 +110,9 @@ int main()
     while(1)
     {
         rs=recv(newsockfd,exp,bs,0);
-        if(rs<=0)break;
+        if(rs<=0){newcon=1;break;}
         for(int i=0;i<rs;++i)
         {
-            //printf("%c",exp[i]);
             if(exp[i]=='(')
                 {
                     bopen=1;
@@ -228,9 +235,6 @@ int main()
             }
             continue;
             }
-            
-
-            //old
             if(exp[i]==' ')continue;
             if(exp[i]=='\0')
             {
@@ -345,10 +349,9 @@ int main()
             break;
         }
     }
-    //printf("the answer is %f\n",fval);
     sprintf(final_ans,"%f",fval);
     send(newsockfd,final_ans,20,0);
-    close(newsockfd);
+    if(newcon)close(newsockfd);
     }
     close(sockfd);
 	return 0;
