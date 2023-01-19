@@ -75,7 +75,7 @@ int main()
         buf[i] = '\0';
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        //printf("Cannot create socket\n");
+        // printf("Cannot create socket\n");
         exit(0);
     }
     serv_addr.sin_family = AF_INET;
@@ -84,7 +84,7 @@ int main()
     if (bind(sockfd, (struct sockaddr *)&serv_addr,
              sizeof(serv_addr)) < 0)
     {
-        //printf("Unable to bind local address\n");
+        // printf("Unable to bind local address\n");
         exit(0);
     }
     listen(sockfd, 5);
@@ -96,7 +96,7 @@ int main()
 
         if (newsockfd < 0)
         {
-            //printf("Accept error\n");
+            // printf("Accept error\n");
             exit(0);
         }
         if (fork() == 0)
@@ -156,7 +156,7 @@ int main()
                                     buf[i] = '\0';
                                 getcwd(buf, bs);
                                 send_cli(newsockfd, buf, strlen(buf) + 1);
-                                //printf("pwd is  %s\n", buf);
+                                // printf("pwd is  %s\n", buf);
                                 break;
                                 // send result
                             }
@@ -176,7 +176,7 @@ int main()
                                     DIR *dr = opendir(".");
                                     if (dr == NULL) // opendir returns NULL if couldn't open directory
                                     {
-                                        //printf("Could not open current directory");
+                                        // printf("Could not open current directory");
                                         bzero(buf, bs);
                                         strcpy(buf, com_error);
                                         send_cli(newsockfd, buf, strlen(buf) + 1);
@@ -194,15 +194,25 @@ int main()
                                         }
                                         send_cli(newsockfd, res, strlen(res) + 1);
                                     }
-                                    //printf("%s is dir\n", res);
+                                    // printf("%s is dir\n", res);
                                     closedir(dr);
                                 }
                                 else
                                 {
                                     DIR *dr = opendir(buf + arg_start);
+                                    if (buf[arg_start] != '/')
+                                    {
+                                        char tempa[bs];
+                                        bzero(tempa,bs);                 //To facilitate relative addressing
+                                        getcwd(tempa, bs);
+                                        strcat(tempa,"/\0");
+                                        strcat(tempa,(buf+arg_start));
+                                        DIR *dr = opendir(tempa);
+                                        printf("Temp ad is %s\n",tempa);
+                                    }
                                     if (dr == NULL) // opendir returns NULL if couldn't open directory
                                     {
-                                        //printf("Could not open current directory");
+                                        // printf("Could not open current directory");
                                         bzero(buf, bs);
                                         strcpy(buf, com_error);
                                         send_cli(newsockfd, buf, strlen(buf) + 1);
@@ -219,7 +229,7 @@ int main()
                                             strcat(res, de->d_name);
                                         };
                                         send_cli(newsockfd, res, strlen(res) + 1);
-                                        //printf("%s is dir\n", res);
+                                        // printf("%s is dir\n", res);
                                     }
                                     closedir(dr);
                                 }
@@ -251,13 +261,13 @@ int main()
                                 }
 
                                 // call cd with arg, it just see till \0
-                                //printf("arg is %s\n", buf + arg_start);
+                                // printf("arg is %s\n", buf + arg_start);
                                 if (chdir(buf + arg_start) == 0)
                                 {
                                     for (int i = 0; i < bs; ++i)
                                         buf[i] = '\0';
                                     getcwd(buf, bs);
-                                    //printf("cd after pwd is %s\n", buf);
+                                    // printf("cd after pwd is %s\n", buf);
                                     char suc[1] = "\0";
                                     send_cli(newsockfd, suc, 1);
                                 }
