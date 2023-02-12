@@ -1,0 +1,71 @@
+A sample request sent to server
+
+    GET /index.html HTTP/1.1
+    Host: www.example.com
+    Connection: keep-alive
+    Accept: text/html  // mutli value
+    Date: 
+    Accept-Language:   //multi value
+    If-Modified-Since:
+    Content-language:  
+    Content-length:
+    Content-type:      //single value 
+
+
+
+
+Sample GET request from client : 
+    GET /index.html HTTP/1.1
+    Host: www.example.com
+    Connection: keep-alive
+    Accept: text/html
+    Date: 
+    Accept-Language:em pettali
+    If-Modified-Since: em pettali
+
+
+Sample PUT request from client : 
+    GET /index.html HTTP/1.1  
+    Host: www.example.com
+    User-Agent: MyHTTPClient/1.0
+    Connection: keep-alive
+    Date: 
+    Content-language: only for text files
+    Content-type:
+    content length: 
+
+    //body
+
+sample response request :
+
+HTTP/1.1 200 OK
+Date: Sat, 11 Feb 2023 16:37:33 GMT
+Last-Modified: Tue, 07 Feb 2023 13:09:04 GMT
+Expires:+3 days
+cache control: no store
+content language: en-us
+Content-Length: 1165020
+Connection: close
+Content-Type: application/pdf
+
+//body
+
+
+GET /favicon.ico HTTP/1.1
+Host: localhost:8080
+Connection: keep-alive
+sec-ch-ua: ".Not/A)Brand";v="99", "Microsoft Edge";v="103", "Chromium";v="103"
+sec-ch-ua-mobile: ?0
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.51
+sec-ch-ua-platform: "Linux"
+Accept: image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8
+Sec-Fetch-Site: same-origin
+Sec-Fetch-Mode: no-cors
+Sec-Fetch-Dest: image
+Referer: http://localhost:8080/index.html
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-GB,en;q=0.9,en-US;q=0.8
+
+
+
+//should handle the date part in get
