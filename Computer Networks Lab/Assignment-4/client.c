@@ -122,7 +122,7 @@ void get_my_time_2(char *buffer)
 }
 void par(char *input, struct http_request *req)
 {
-    printf("hi||");
+    //printf("hi||");
     int len = strlen(input);
     char **tokens = divide_string(input, "\n");
     char requestt[MAX_LEN];
@@ -130,9 +130,24 @@ void par(char *input, struct http_request *req)
     sscanf(requestt, "%s", req->method);
     sscanf(requestt, "%*s %s", req->url);
     sscanf(requestt, "%*s %*s %s", req->filename);
-
+    //char sub[]=":";
+    printf("hii");
+   
     char protocol[MAX_LEN];
     parse_url(&req->url, protocol, &req->host, &req->port, &req->path);
+    //char *ptr = strchr(req->url, ':');
+    //char* p;
+    //printf("%d", req->port);
+    // for(int i=0;i<strlen(req->url);i++){
+    //     if(req->url[i]==':'){
+    //         req->port = atoi(i+1);
+    //         break;
+    //     }
+    // }
+
+    // if(ptr){
+    //    req->port = atoi(ptr+1);
+    // }
     char *t;
     for (int i = 1; tokens[i]; i++)
     {
@@ -325,6 +340,7 @@ int send_any_file(int newsockfd, char buf[], char filename[])
 
 void send_put(struct http_request *req, int sockfd, char *buf)
 {
+    printf("%s", req->filename);
     char request[response_size];
     char date_f[40];
     bzero(date_f, 40);
@@ -341,12 +357,6 @@ void send_put(struct http_request *req, int sockfd, char *buf)
     strcat(request, "Content-Language: en-US\n");
     strcat(request, "Content-type: ");
     char *extension = get_file_extension(req->filename);
-    // int file = open(req->filename, O_RDONLY);
-    // if (file == -1)
-    // {
-    //     printf("not found bro||\n");
-    //     return;
-    // }
     char *content_type = "text/*\n";
     if (strcmp(extension, "html") == 0)
     {
@@ -368,8 +378,10 @@ void send_put(struct http_request *req, int sockfd, char *buf)
     sprintf(y, "%d", x);
     strcat(request, y);
     strcat(request, "\n\n");
+    printf("req sent is ------\n%s",request);
     send(sockfd, request, strlen(request), 0);
-    send_any_file(sockfd, date_f, req->filename);
+    send_any_file(sockfd, buff, req->filename);
+    return;
 }
 
 void send_get(struct http_request *req, int sockfd, char *buf)
@@ -386,13 +398,6 @@ void send_get(struct http_request *req, int sockfd, char *buf)
     strcat(request, "Connection: close\n");
     strcat(request, "Accept: ");
     char *extension = get_file_extension(req->path);
-    // int file = open(req->path, O_RDONLY);
-    // if (file == -1)
-    // {
-    //     // file not found
-    //     printf("not found bro\n");
-    //     return;
-    // }
     char *content_type = "text/*\n";
     if (strcmp(extension, "html") == 0)
     {
@@ -447,10 +452,36 @@ int main(int argc, char *argv[])
     }
     printf("Connected\n");
     fgets(buff, 10000, stdin);
+
+
+     char fport[15];
+      char myport[15];
+    strcpy(fport,"80");
+    for(int i=0;i<strlen(buff);++i)
+    {
+         if(buff[strlen(buff)-2]>='0'&&buff[strlen(buff)-2]<='9')
+         {
+           
+            bzero(myport,15);
+            int i=0;
+            for(int j=strlen(buff)-2;j>=0;--j)
+            {
+                    if(buff[j]==':')break;
+                    myport[i++]=buff[j];
+            }
+           bzero(fport,15);i=0;
+            for(int k=strlen(myport)-1;k>=0;--k)fport[i++]=myport[k];
+         }
+    }
+    printf("%s is port\n",fport);
     struct http_request req;
     par(buff, &req);
-    printf("%s\n", req.filename);
-    printf("%s\n", req.method);
+    req.port = atoi(fport);
+    // printf("%s\n", req.url);
+    // printf("%s\n", req.host);
+    // printf("%s\n", req.path);
+
+    
     if (strcmp("GET", req.method) == 0)
     {
         send_get(&req, sockfd, buff);
