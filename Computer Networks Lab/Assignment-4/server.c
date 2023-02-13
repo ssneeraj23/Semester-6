@@ -19,6 +19,30 @@
 #define response_size 1000
 #define BUF_SIZE 100
 
+int recv_chunk(char *buf, int newsockfd)
+{
+    char recv_buf[recs];
+    for (int i = 0; i < recs; ++i)
+        recv_buf[i] = '\0';
+    int c = 0;
+    int rs = recv(newsockfd, recv_buf, recs - 1, 0);
+    if (rs <= 0)
+        return rs;
+    c += rs;
+    for (int i = 0; i < bs; ++i)
+        buf[i] = '\0';
+    strcat(buf, recv_buf);
+    while (1)
+    {
+        if(buf[c-1]=='\n'&&buf[c-2]=='\n')break;
+        rs = recv(newsockfd, recv_buf, recs - 1, 0);
+        recv_buf[rs] = '\0';
+        strcat(buf, recv_buf);
+        c += rs;
+    }
+     //printf("AFTER ----------------------------------\n");
+    return c;
+}
 
 struct http_request
 {
@@ -358,7 +382,6 @@ void putinaccesslog(struct http_request *req, char *port, char *ip)
     strcat(line, req->method);
     strcat(line, ":");
     strcat(line, req->url);
-    strcat(line, ">");
     strcat(line, "\n");
     fputs(line, file);
     // Close the file
@@ -391,10 +414,7 @@ int send_any_file_text(int newsockfd, char buf[], char filename[])
     bzero(buf, BUF_SIZE);
     return 1;
 }
-void handle_put(int cli_socket, struct http_request *req)
-{
-    
-}
+
 
 void put_in(int newsockfd, char *port, char *ip)
 {
@@ -430,7 +450,7 @@ void put_in(int newsockfd, char *port, char *ip)
     char buff[30000];
     bzero(buff, 30000);
     strcpy(buff, buf);
-    printf("Response received is -----------------\n%s\n", buff);
+    printf("\n-----Received request is -----\n%s\n", buff);
     struct http_request *sereq = (struct http_request *)malloc(sizeof(struct http_request));
     par(buff, sereq);
     //printf("\n\nparsed\n\n");
@@ -451,6 +471,7 @@ void put_in(int newsockfd, char *port, char *ip)
         strcat(response, date_f);
         strcat(response, "Connection: close\n\n");
         send(newsockfd, response, strlen(response), 0);
+        printf("-----The sent response is ------\n%s\n",response);
         return;
     }
     if (fstart < rs)
@@ -479,13 +500,14 @@ void put_in(int newsockfd, char *port, char *ip)
     strcat(response, "Date: ");
     strcat(response, date_f);
     bzero(date_f, 40);
+    strcat(response, "\n");
     send(newsockfd, response, strlen(response), 0);
+    printf("-----The sent response is ------\n%s\n",response);
     return;
 }
 
 void handle_get(int cli_socket, struct http_request *req)
 {
-    
     char *extension = get_file_extension(req->path);
     int file = open(req->path, O_RDONLY);
     if (file == -1)
@@ -500,6 +522,7 @@ void handle_get(int cli_socket, struct http_request *req)
         strcat(response, date_f);
         strcat(response, "Connection: close\n\n");
         send(cli_socket, response, strlen(response), 0);
+        printf("-----The sent response is ------\n%s\n",response);
         return;
     }
     char *content_type = "text/*\n";
@@ -540,7 +563,6 @@ void handle_get(int cli_socket, struct http_request *req)
     strcat(response, date_f);
     strcat(response, "Connection: close\n");
     strcat(response, "Content-Type: ");
-    // printf("got in handle\n");
     strcat(response, content_type);
     strcat(response, "Content-Language: en-US\n");
     strcat(response, "Content-Length: ");
@@ -550,9 +572,31 @@ void handle_get(int cli_socket, struct http_request *req)
     sprintf(y, "%d", x);
     strcat(response, y);
     strcat(response, "\n\n");
-    // printf("My response is \n\n%s", response);
-    printf("Response sent\n\n");
+    struct tm tm1, tm2;
+    // printf("%s\n", date_f);
+    // printf("%s\n", req->if_mod);
+    strptime(date_f, "%a, %d %b %Y %T GMT", &tm1);
+    strptime(req->if_mod, "%a, %d %b %Y %T GMT", &tm2);
+
+    time_t t1 = mktime(&tm1);
+    time_t t2 = mktime(&tm2);
+    if(t2>t1){
+        //check it up
+        char response[response_size];
+        strcat(response, "HTTP/1.1 304 NOT Modified\n");
+        char date_f[40];
+        bzero(date_f, 40);
+        get_my_time(date_f);
+        strcat(response, "Date: ");
+        strcat(response, date_f);
+        strcat(response, "Connection: close\n\n");
+        send(cli_socket, response, strlen(response), 0);
+        printf("-----The sent response is ------\n%s\n",response);
+        return;
+        
+    }
     send(cli_socket, response, strlen(response), 0);
+    printf("-----The sent response is ------\n%s\n",response);
     send_any_file(cli_socket, buf, req->path);
     return;
 }
@@ -564,7 +608,7 @@ int main(int argc, char *argv[])
     struct sockaddr_in cli_addr, serv_addr;
     char mytime[64];
     time_t t;
-    char req[bs];
+    // char req[bs];
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         perror("Cannot create socket\n");
@@ -614,8 +658,9 @@ int main(int argc, char *argv[])
                 {
                     char get_reqs[10000];
                     bzero(get_reqs, 10000);
-                    int rec_size = recv(newsockfd, get_reqs, 10000, 0); // use multiple calls
-                    printf("-------received request----------\n\n%s", get_reqs);
+                    //int rec_size = recv(newsockfd, get_reqs, 10000, 0); // use multiple calls
+                    recv_chunk(get_reqs,newsockfd);
+                    printf("\n-----Received request is -----\n%s\n", get_reqs);
                     struct http_request cli_req;
                     par(get_reqs, &cli_req);
                     putinaccesslog(&cli_req, cli_port, ip);
@@ -623,6 +668,10 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
+                    char get_reqs[10000];
+                    bzero(get_reqs, 10000);
+                    int rec_size = recv(newsockfd, get_reqs, 10000, 0);
+                    printf("\n-----Received request is -----\n%s\n", get_reqs);
                     char response[response_size];
                     strcat(response, "HTTP/1.1 400 Bad Request\n");
                     char date_f[40];
@@ -632,6 +681,7 @@ int main(int argc, char *argv[])
                     strcat(response, date_f);
                     strcat(response, "Connection: close\n\n");
                     send(newsockfd, response, strlen(response), 0);
+                    printf("-----The sent response is ------\n%s\n",response);
                 }
             }
             close(newsockfd);
