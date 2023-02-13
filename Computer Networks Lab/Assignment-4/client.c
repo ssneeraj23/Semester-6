@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
+#include <poll.h>
+#define POLL_SIZE 3
 #define max_len 50
 #define bs 100
 #define send_size 45
@@ -26,7 +28,7 @@ void get_my_time(char *buffer)
     struct tm tstruct;
     tstruct = *gmtime(&now);
     strftime(buffer, 80, "%a, %d %b %Y %X GMT", &tstruct);
-    strcat(buffer, "\n");
+    strcat(buffer, "\r\n");
 }
 
 struct http_request
@@ -39,7 +41,13 @@ struct http_request
     char accept_lan[MAX_LEN], accept_req[MAX_LEN];
     char filename[MAX_LEN];
 };
-
+char *get_file_extension(char *file)
+{
+    char *dot = strrchr(file, '.');
+    if (!dot || dot == file)
+        return "";
+    return dot + 1;
+}
 void remove_characters_after(char *str, char c)
 {
     char *p = strchr(str, c);
@@ -118,7 +126,7 @@ void get_my_time_2(char *buffer)
     now -= 2 * 24 * 60 * 60;
     struct tm *tm = gmtime(&now);
     strftime(buffer, 100, "%a, %d %b %Y %T GMT", tm);
-    strcat(buffer, "\n");
+    strcat(buffer, "\r\n");
 }
 void par(char *input, struct http_request *req)
 {
@@ -181,68 +189,101 @@ void par(char *input, struct http_request *req)
         }
     }
 }
-int recv_cli( int newsockfd, struct http_request *hr)
+int recv_cli(int newsockfd, struct http_request *hr)
 {
     char buf[30000];
-    bzero(buf,30000);
+    bzero(buf, 30000);
     char recv_buf[recs];
     for (int i = 0; i < recs; ++i)
         recv_buf[i] = '\0';
     int c = 0;
     int rs;
-    int fbyt,fstart;
-    fbyt=-2;
+    int fbyt, fstart;
+    fbyt = -2;
     while (1)
     {
         rs = recv(newsockfd, recv_buf, recs - 1, 0);
         recv_buf[rs] = '\0';
-        for(int i=0;i<rs-1;++i)
+        for (int i = 0; i < rs - 1; ++i)
         {
-             if(recv_buf[i]=='\n'&&recv_buf[i+1]=='\n')
-             {
-                fbyt=rs-i+2;
-                fstart=i+2;
-                recv_buf[i+1]='\0';
-                strcat(buf,recv_buf);
+            if (recv_buf[i] == '\n' && recv_buf[i + 1] == '\n')
+            {
+                fbyt = rs - i + 2;
+                fstart = i + 2;
+                recv_buf[i + 1] = '\0';
+                strcat(buf, recv_buf);
                 printf("breaking---\n");
                 break;
-             }
+            }
         }
-        if(fbyt!=-2)break;
+        if (fbyt != -2)
+            break;
         strcat(buf, recv_buf);
     }
-    printf("Response received for get is -----------------\n%s\n",buf);
-    printf("HELLO||\n");
-    struct http_request *sereq=(struct http_request *)malloc(sizeof(struct http_request ));
-    par(buf, sereq);
-    printf("\n\nparsed\n\n");
-    printf("%d\n", sereq->content_len);
-    FILE *outfile;
-    // char outfilename[] = "done.pdf";
-    outfile = fopen(hr->path, "wb");
-    if(fstart<rs)
+    printf("\n\nResponse received\n");
+    printf("%s", buf);
+
+    // check for 404 and return
+    for (int i = 0; i < strlen(buf) - 2; i++)
     {
-        fwrite(recv_buf+fstart, 1, fbyt, outfile);
+        if (buf[i] == '4' && buf[i + 1] == '0' && buf[i + 2] == '4')
+        {
+            return 0;
+        }
+        if (buf[i] == '\n')
+        {
+            break;
+        }
     }
-    int file_length=sereq->content_len;
-    printf("fbytes is %d and file length is %d\n",fbyt,file_length);
-    while(fbyt<file_length)
+
+    struct http_request *sereq = (struct http_request *)malloc(sizeof(struct http_request));
+    par(buf, sereq);
+    // printf("\n\nparsed\n\n");
+    // printf("%d\n", sereq->content_len);
+    FILE *outfile;
+    outfile = fopen(hr->path, "wb");
+    if (fstart < rs)
+    {
+        fwrite(recv_buf + fstart, 1, fbyt, outfile);
+    }
+    int file_length = sereq->content_len;
+    // printf("fbytes is %d and file length is %d\n",fbyt,file_length);
+    while (fbyt < file_length)
     {
         rs = recv(newsockfd, recv_buf, recs - 1, 0);
         fwrite(recv_buf, 1, rs, outfile);
-        fbyt+=rs;
+        fbyt += rs;
     }
-    printf("fbytes is %d and file length is %d\n",fbyt,file_length);
-    fclose(outfile);
-    return c;
-}
+    // printf("fbytes is %d and file length is %d\n",fbyt,file_length);
 
-char *get_file_extension(char *file)
-{
-    char *dot = strrchr(file, '.');
-    if (!dot || dot == file)
-        return "";
-    return dot + 1;
+    fclose(outfile);
+    // file.close();
+    pid_t pid = fork();
+    if (pid == 0)
+    {
+        // Child process
+        char *file_extension = get_file_extension(hr->path);
+        if (strcmp(file_extension, "pdf") == 0)
+        {
+            execlp("acroread", "acroread", hr->path, NULL);
+        }
+        else if (strcmp(file_extension, "html") == 0)
+        {
+            execlp("firefox", "firefox", hr->path, NULL);
+        }
+        else if (strcmp(file_extension, "jpg") == 0)
+        {
+            execlp("eog", "eog", hr->path, NULL);
+        }
+        else
+        {
+            execlp("gedit", "gedit", hr->path, NULL);
+        }
+
+        printf("Error opening application.");
+        exit(1);
+    }
+    return c;
 }
 
 int count_number_of_bytes(char buf[], char filename[])
@@ -261,10 +302,10 @@ int count_number_of_bytes(char buf[], char filename[])
         count += t;
     }
     fclose(infile);
-    if (ferror(infile))
-    {
-        printf("Error reading file %s", filename);
-    }
+    // if (ferror(infile))
+    // {
+    //     printf("Error reading file %s", filename);
+    // }
     return count;
 }
 
@@ -288,17 +329,17 @@ int send_any_file(int newsockfd, char buf[], char filename[])
     }
     fclose(infile);
     fclose(outfile);
-    if (ferror(infile))
-    {
-        printf("Error reading file %s", filename);
-    }
+    // if (ferror(infile))
+    // {
+    //     printf("Error reading file %s", filename);
+    // }
     bzero(buf, BUF_SIZE);
     return 1;
 }
 
 void send_put(struct http_request *req, int sockfd, char *buf)
 {
-    printf("%s", req->filename);
+    // printf("%s", req->filename);
     char request[response_size];
     char date_f[40];
     bzero(date_f, 40);
@@ -336,9 +377,22 @@ void send_put(struct http_request *req, int sockfd, char *buf)
     sprintf(y, "%d", x);
     strcat(request, y);
     strcat(request, "\n\n");
-    printf("req sent is ------\n%s",request);
+    printf("request sent  ------\n");
     send(sockfd, request, strlen(request), 0);
     send_any_file(sockfd, buff, req->filename);
+    char put_resp[response_size];
+    bzero(put_resp, response_size);
+    struct pollfd set_poll[POLL_SIZE];
+    int numfds = 0;
+    set_poll[0].fd = sockfd;
+    set_poll[0].events = POLLIN;
+    numfds++;
+    int pol;
+    pol = poll(set_poll, numfds, 3000);
+    if (pol <= 0)
+        return;
+    recv(sockfd, put_resp, response_size, 0);
+    printf("received resp is \n%s\n", put_resp);
     return;
 }
 
@@ -374,71 +428,112 @@ void send_get(struct http_request *req, int sockfd, char *buf)
     strcat(request, "If-Modified-Since: ");
     get_my_time_2(date_f);
     strcat(request, date_f);
+    strcat(request, "\r\n");
     send(sockfd, request, strlen(request), 0);
-    printf("sent req is\n%s \n-----\n",request);
-    recv_cli(sockfd,req);
+    // printf("sent req is\n%s \n-----\n",request);
+
+    struct pollfd set_poll[POLL_SIZE];
+    int numfds = 0;
+    set_poll[0].fd = sockfd;
+    set_poll[0].events = POLLIN;
+    numfds++;
+    int pol;
+    pol = poll(set_poll, numfds, 3000);
+    if (pol <= 0)
+        return;
+
+    recv_cli(sockfd, req);
+    // printf("%s\n", req);
     return;
-
 }
-
-
 
 int main()
 {
     int sockfd, newsockfd, clilen, l_port;
     struct sockaddr_in serv_addr;
     char buff[10000];
-    bzero(buff, 10000);
-    printf("Connected\n");
-    fgets(buff, 10000, stdin);
-    char fport[15];
-    char myport[15];
-    strcpy(fport,"80");
-    for(int i=0;i<strlen(buff);++i)
+    while (1)
     {
-         if(buff[strlen(buff)-2]>='0'&&buff[strlen(buff)-2]<='9')
-         {
-           
-            bzero(myport,15);
-            int i=0;
-            for(int j=strlen(buff)-2;j>=0;--j)
-            {
-                    if(buff[j]==':')break;
-                    myport[i++]=buff[j];
-            }
-           bzero(fport,15);i=0;
-            for(int k=strlen(myport)-1;k>=0;--k)fport[i++]=myport[k];
-         }
-    }
-    printf("%s is port\n",fport);
-    struct http_request req;
-    par(buff, &req);
-    printf("the host ip is %s\n",req.host);
-    req.port = atoi(fport);
+        bzero(buff, 10000);
+        printf("MyOwnBrowser > ");
+        fgets(buff, 10000, stdin);
+        if (strcmp("QUIT\n", buff) == 0)
+        {
+            close(sockfd);
+            break;
+        }
+        char fport[15];
+        char myport[15];
+        strcpy(fport, "80");
+        struct http_request req;
+        par(buff, &req);
+        printf("req url is %s\n", req.url);
+        if (req.url[strlen(req.url) - 1] >= '0' && req.url[strlen(req.url) - 1] <= '9')
+        {
 
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        perror("Cannot create socket\n");
-        exit(0);
+            bzero(myport, 15);
+            int i = 0;
+            for (int j = strlen(req.url) - 1; j >= 0; --j)
+            {
+                if (req.url[j] == ':')
+                    break;
+                myport[i++] = req.url[j];
+            }
+            bzero(fport, 15);
+            i = 0;
+            for (int k = strlen(myport) - 1; k >= 0; --k)
+                fport[i++] = myport[k];
+        }
+        printf("%s is port\n", fport);
+
+        req.port = atoi(fport);
+
+        if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        {
+            perror("Cannot create socket\n");
+            exit(0);
+        }
+        serv_addr.sin_family = AF_INET;
+        inet_aton("127.0.0.1", &serv_addr.sin_addr);
+        serv_addr.sin_port = htons(req.port);
+        inet_aton(req.host, &serv_addr.sin_addr);
+        printf("the host ip is %s\n", req.host);
+        if ((connect(sockfd, (struct sockaddr *)&serv_addr,
+                     sizeof(serv_addr))) < 0)
+        {
+            perror("Unable to connect to server\n");
+            continue;
+        }
+        if (strcmp("GET", req.method) == 0)
+        {
+            send_get(&req, sockfd, buff);
+        }
+        else
+        {
+            if (strcmp("PUT", req.method) == 0)
+            {
+                send_put(&req, sockfd, buff);
+            }
+            else
+            {
+                send(sockfd, buff, strlen(buff), 0);
+                struct pollfd set_poll[POLL_SIZE];
+                int numfds = 0;
+                set_poll[0].fd = sockfd;
+                set_poll[0].events = POLLIN;
+                numfds++;
+                int pol;
+                pol = poll(set_poll, numfds, 3000);
+                if (pol <= 0)
+                    return 0;
+                bzero(buff, 1000);
+                recv(sockfd, buff, 300, 0);
+                printf("The response is \n%s\n", buff);
+            }
+        }
+
+        close(sockfd);
     }
-    serv_addr.sin_family = AF_INET;
-    inet_aton("127.0.0.1", &serv_addr.sin_addr);
-    serv_addr.sin_port = htons(req.port);
-    inet_aton(req.host, &serv_addr.sin_addr);
-    if ((connect(sockfd, (struct sockaddr *)&serv_addr,
-                 sizeof(serv_addr))) < 0)
-    {
-        perror("Unable to connect to server\n");
-        exit(0);
-    }
-    if (strcmp("GET", req.method) == 0)
-    {
-        send_get(&req, sockfd, buff);
-    }
-    if (strcmp("PUT", req.method) == 0)
-    {
-        send_put(&req, sockfd, buff);
-    }
-    close(sockfd);
+
     return 0;
 }
