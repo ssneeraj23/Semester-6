@@ -13,7 +13,7 @@
 #define bs 100
 #define send_size 45
 #define recs 45
-#define MAX_LEN 1000
+#define MAX_LEN 100
 #define MAX_TOKENS 10
 #define response_size 1000
 #define BUF_SIZE 100
@@ -26,6 +26,8 @@ struct http_request
     int connection;
     int content_len;
     char accept_lan[MAX_LEN], accept_req[MAX_LEN];
+    char filename[MAX_LEN];
+
 };
 void remove_characters_after(char *str, char c)
 {
@@ -105,6 +107,8 @@ void par(char *input, struct http_request *req)
     strcpy(requestt, tokens[0]);
     sscanf(requestt, "%s", req->method);
     sscanf(requestt, "%*s %s", req->url);
+    sscanf(requestt, "%*s %*s %s", req->filename);
+
     char protocol[MAX_LEN];
     parse_url(&req->url, protocol, &req->host, &req->port, &req->path);
     char *t;
@@ -127,12 +131,7 @@ void par(char *input, struct http_request *req)
             }
             else if (strcmp(token, "Accept") == 0)
             {
-                // char ** t = divide_string(end+1, ",");
-                // int i=0;
-                // for(int i=0;t[i];i++){
                 strcpy(req->accept_req, end + 1);
-
-                //}
             }
             else if (strcmp(token, "Date") == 0)
             {
@@ -140,11 +139,7 @@ void par(char *input, struct http_request *req)
             }
             else if (strcmp(token, "Accept-Language") == 0)
             {
-                // char ** t = divide_string(end+1, ",");
-                // int i=0;
-                // for(int i=0;t[i];i++){
                 strcpy(req->accept_lan, end + 1);
-                //}
             }
             else if (strcmp(token, "If-Modifed-Since") == 0)
             {
@@ -348,15 +343,63 @@ int send_any_file_text(int newsockfd, char buf[], char filename[])
     bzero(buf, BUF_SIZE);
     return 1;
 }
-
+void handle_put(int cli_socket, struct http_request *req){
+    char content[response_size];
+     recv(cli_socket, content, 1000,0);
+     char *extension = get_file_extension(req->filename);
+    int file = open(req->filename, O_RDONLY);
+    if (file == -1)
+    {
+        printf("not found bro\n");
+        return;
+    }
+    char *content_type = "text/*\n";
+    if (strcmp(extension, "html") == 0)
+    {
+        content_type = "text/html\n";
+    }
+    else if (strcmp(extension, "pdf") == 0)
+    {
+        content_type = "application/pdf\n";
+    }
+    else if (strcmp(extension, "jpg") == 0)
+    {
+        content_type = "image/jpeg\n";
+    }
+    char response[response_size];
+    char *status_code = "201";
+    bzero(response, response_size);
+    strcat(response, "HTTP/1.1 ");
+    strcat(response, status_code);
+    strcat(response, " OK\n");
+    char date_f[40];
+    bzero(date_f, 40);
+    get_my_time(date_f);
+    strcat(response, "Date: ");
+    strcat(response, date_f);
+    bzero(date_f, 40);
+   // printf("%s\n", response);
+    strcat(response, "Content-Type: ");
+    //printf("got in handle\n");
+    strcat(response, content_type);
+    strcat(response, "Content-Language: en-US\n");
+    strcat(response, "Content-Length: ");
+    char buf[BUF_SIZE] = {0};
+    int x = count_number_of_bytes_in_text(buf, req->filename);
+    char y[10];
+    sprintf(y, "%d", x);
+    strcat(response, y);
+    strcat(response, "\n\n");
+    printf("%s", response);
+    send(cli_socket, response, strlen(response), 0);
+     
+}
 void handle_get(int cli_socket, struct http_request *req)
 {
     char *extension = get_file_extension(req->path);
-    printf("%s is file path\n", req->path);
     int file = open(req->path, O_RDONLY);
     if (file == -1)
     {
-        // file not found
         printf("not found bro\n");
         return;
     }
@@ -398,21 +441,19 @@ void handle_get(int cli_socket, struct http_request *req)
     strcat(response, date_f);
     strcat(response, "Connection: close\n");
     strcat(response, "Content-Type: ");
-    printf("got in handle\n");
+    //printf("got in handle\n");
     strcat(response, content_type);
     strcat(response, "Content-Language: en-US\n");
     strcat(response, "Content-Length: ");
     char buf[BUF_SIZE] = {0};
     int x = count_number_of_bytes_in_text(buf, req->path);
-    // strcat(response, itoa(x));
     char y[10];
     sprintf(y, "%d", x);
     strcat(response, y);
     strcat(response, "\n\n");
-    send(cli_socket, response, strlen(response), 0);
-    // send(cli_socket, response, strlen(response) + 1, 0);
-    send_any_file(cli_socket, buf, req->path);
     printf("My response is \n\n%s",response);
+    send(cli_socket, response, strlen(response), 0);
+    send_any_file(cli_socket, buf, req->path);
     return;
 }
 int main(int argc, char *argv[])
@@ -454,12 +495,24 @@ int main(int argc, char *argv[])
             char get_req[30000];
             bzero(get_req, 30000);
             int rec_size = recv(newsockfd, get_req, 30000, 0);
-            printf("-------received----------\n%s\n", get_req);
+            printf("-------received----------\n%s", get_req);
             struct http_request cli_req;
             // char input[MAX_LEN] = "GET http://cse.iitkgp.ac.in/~agupta/networks/index.html\nHost: www.example.com\nConnection: close\nAccept: text/html,pdf\nDate: 11/2/2023\nAccept-Language: en-us\nIf-Modified-Since: 2\nContent-length: 20\nAccept-Language: a,b,c";
             par(get_req, &cli_req);
             // printf("%s\n", cli_req.path);
+            if(strcmp(cli_req.method, "GET")==0){
+
             handle_get(newsockfd, &cli_req);
+            }
+            if(strcmp(cli_req.method, "PUT")==0){
+            handle_put(newsockfd, &cli_req);
+            }
+            if(strcmp(cli_req.method, "QUIT")==0){
+           close(newsockfd);
+            exit(0);
+            }
+            
+            
             close(newsockfd);
             exit(0);
         }
