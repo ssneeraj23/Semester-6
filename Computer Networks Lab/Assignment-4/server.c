@@ -27,7 +27,6 @@ struct http_request
     int content_len;
     char accept_lan[MAX_LEN], accept_req[MAX_LEN];
     char filename[MAX_LEN];
-
 };
 void remove_characters_after(char *str, char c)
 {
@@ -109,9 +108,16 @@ void par(char *input, struct http_request *req)
     sscanf(requestt, "%*s %s", req->url);
     sscanf(requestt, "%*s %*s %s", req->filename);
 
+    //char sub[] = ":";
+   
     char protocol[MAX_LEN];
     parse_url(&req->url, protocol, &req->host, &req->port, &req->path);
     char *t;
+     char *ptr = strchr(req->url, ':');
+    req->port = 80;
+    if(ptr){
+       req->port = atoi(ptr+1);
+    }
     for (int i = 1; tokens[i]; i++)
     {
         char *end = strstr(tokens[i], " ");
@@ -145,11 +151,11 @@ void par(char *input, struct http_request *req)
             {
                 strcpy(req->if_mod, end + 1);
             }
-            else if (strcmp(token, "Content-language") == 0)
+            else if (strcmp(token, "Content-Language") == 0)
             {
                 strcpy(req->con_lang, end + 1);
             }
-            else if (strcmp(token, "Content-length") == 0)
+            else if (strcmp(token, "Content-Length") == 0)
             {
                 req->content_len = atoi(end + 1);
             }
@@ -293,9 +299,9 @@ int send_any_file(int newsockfd, char buf[], char filename[])
 {
     bzero(buf, BUF_SIZE);
     FILE *infile, *outfile;
-    char outfilename[] = "output";
+    // char outfilename[] = "output";
     infile = fopen(filename, "rb");
-    outfile = fopen(outfilename, "wb");
+    // outfile = fopen(outfilename, "wb");
     if (infile == NULL)
     {
         printf("Error: could not open file %s", filename);
@@ -305,10 +311,10 @@ int send_any_file(int newsockfd, char buf[], char filename[])
     while ((t = fread(buf, 1, BUF_SIZE, infile)) > 0)
     {
         send(newsockfd, buf, t, 0);
-        fwrite(buf, 1, t, outfile);
+        // fwrite(buf, 1, t, outfile);
     }
     fclose(infile);
-    fclose(outfile);
+    // fclose(outfile);
     if (ferror(infile))
     {
         printf("Error reading file %s", filename);
@@ -343,10 +349,12 @@ int send_any_file_text(int newsockfd, char buf[], char filename[])
     bzero(buf, BUF_SIZE);
     return 1;
 }
-void handle_put(int cli_socket, struct http_request *req){
+void handle_put(int cli_socket, struct http_request *req)
+{
     char content[response_size];
-     recv(cli_socket, content, 1000,0);
-     char *extension = get_file_extension(req->filename);
+    recv(cli_socket, content, 1000, 0);
+    printf("%s", content);
+    char *extension = get_file_extension(req->filename);
     int file = open(req->filename, O_RDONLY);
     if (file == -1)
     {
@@ -378,9 +386,9 @@ void handle_put(int cli_socket, struct http_request *req){
     strcat(response, "Date: ");
     strcat(response, date_f);
     bzero(date_f, 40);
-   // printf("%s\n", response);
+    // printf("%s\n", response);
     strcat(response, "Content-Type: ");
-    //printf("got in handle\n");
+    // printf("got in handle\n");
     strcat(response, content_type);
     strcat(response, "Content-Language: en-US\n");
     strcat(response, "Content-Length: ");
@@ -392,8 +400,68 @@ void handle_put(int cli_socket, struct http_request *req){
     strcat(response, "\n\n");
     printf("%s", response);
     send(cli_socket, response, strlen(response), 0);
-     
 }
+
+void put_in(int newsockfd)
+{
+    char buf[30000];
+    bzero(buf, 30000);
+    char recv_buf[recs];
+    for (int i = 0; i < recs; ++i)
+        recv_buf[i] = '\0';
+    int c = 0;
+    int rs;
+    int fbyt, fstart;
+    fbyt = -2;
+    while (1)
+    {
+        rs = recv(newsockfd, recv_buf, recs - 1, 0);
+        recv_buf[rs] = '\0';
+        for (int i = 0; i < rs - 1; ++i)
+        {
+            if (recv_buf[i] == '\n' && recv_buf[i + 1] == '\n')
+            {
+                fbyt = rs - i + 2;
+                fstart = i + 2;
+                recv_buf[i + 1] = '\0';
+                strcat(buf, recv_buf);
+                printf("breaking---\n");
+                break;
+            }
+        }
+        if (fbyt != -2)
+            break;
+        strcat(buf, recv_buf);
+    }
+    char buff[30000];
+    bzero(buff, 30000);
+    strcpy(buff, buf);
+    printf("Response received for get is -----------------\n%s\n", buff);
+    printf("HELLO||\n");
+    struct http_request *sereq = (struct http_request *)malloc(sizeof(struct http_request));
+    par(buff, sereq);
+    printf("\n\nparsed\n\n");
+    printf("%d\n", sereq->content_len);
+    FILE *outfile;
+    // char outfilename[] = "done.pdf";
+    outfile = fopen(sereq->filename, "wb");
+    if (fstart < rs)
+    {
+        fwrite(recv_buf + fstart, 1, fbyt, outfile);
+    }
+    int file_length = sereq->content_len;
+    printf("fbytes is %d and file length is %d\n", fbyt, file_length);
+    while (fbyt < file_length)
+    {
+        rs = recv(newsockfd, recv_buf, recs - 1, 0);
+        fwrite(recv_buf, 1, rs, outfile);
+        fbyt += rs;
+    }
+    printf("fbytes is %d and file length is %d\n", fbyt, file_length);
+    fclose(outfile);
+    return;
+}
+
 void handle_get(int cli_socket, struct http_request *req)
 {
     char *extension = get_file_extension(req->path);
@@ -441,7 +509,7 @@ void handle_get(int cli_socket, struct http_request *req)
     strcat(response, date_f);
     strcat(response, "Connection: close\n");
     strcat(response, "Content-Type: ");
-    //printf("got in handle\n");
+    // printf("got in handle\n");
     strcat(response, content_type);
     strcat(response, "Content-Language: en-US\n");
     strcat(response, "Content-Length: ");
@@ -451,7 +519,7 @@ void handle_get(int cli_socket, struct http_request *req)
     sprintf(y, "%d", x);
     strcat(response, y);
     strcat(response, "\n\n");
-    printf("My response is \n\n%s",response);
+    printf("My response is \n\n%s", response);
     send(cli_socket, response, strlen(response), 0);
     send_any_file(cli_socket, buf, req->path);
     return;
@@ -492,27 +560,42 @@ int main(int argc, char *argv[])
         if (fork() == 0)
         {
             close(sockfd);
-            char get_req[30000];
-            bzero(get_req, 30000);
-            int rec_size = recv(newsockfd, get_req, 30000, 0);
-            printf("-------received----------\n%s", get_req);
-            struct http_request cli_req;
-            // char input[MAX_LEN] = "GET http://cse.iitkgp.ac.in/~agupta/networks/index.html\nHost: www.example.com\nConnection: close\nAccept: text/html,pdf\nDate: 11/2/2023\nAccept-Language: en-us\nIf-Modified-Since: 2\nContent-length: 20\nAccept-Language: a,b,c";
-            par(get_req, &cli_req);
-            // printf("%s\n", cli_req.path);
-            if(strcmp(cli_req.method, "GET")==0){
-
-            handle_get(newsockfd, &cli_req);
+            char get_req[30];
+            bzero(get_req, 30);
+            //     bzero(get_req, 30000);
+            //     int rec_size = recv(newsockfd, get_req, 30000, 0);
+            //     printf("-------received----------\n%s", get_req);
+            //     struct http_request cli_req;
+            //     par(get_req, &cli_req);
+            //     if(strcmp(cli_req.method, "GET")==0){
+            //     handle_get(newsockfd, &cli_req);
+            //     }
+            //     if(strcmp(cli_req.method, "PUT")==0){
+            //     handle_put(newsockfd, &cli_req);
+            //     }
+            //     if(strcmp(cli_req.method, "QUIT")==0){
+            //    close(newsockfd);
+            //     exit(0);
+            //     }
+            int rec_size = recv(newsockfd, get_req, 3, MSG_PEEK);
+            if (strcmp(get_req, "PUT") == 0)
+            {
+                printf("It is a put request\n-----");
+                put_in(newsockfd);
             }
-            if(strcmp(cli_req.method, "PUT")==0){
-            handle_put(newsockfd, &cli_req);
+            else
+            {
+                if (strcmp(get_req, "GET") == 0)
+                {
+                    char get_reqs[10000];
+                    bzero(get_reqs, 10000);
+                    int rec_size = recv(newsockfd, get_reqs, 10000, 0);
+                    printf("-------received----------\n%s", get_reqs);
+                    struct http_request cli_req;
+                    par(get_reqs, &cli_req);
+                    handle_get(newsockfd, &cli_req);
+                }
             }
-            if(strcmp(cli_req.method, "QUIT")==0){
-           close(newsockfd);
-            exit(0);
-            }
-            
-            
             close(newsockfd);
             exit(0);
         }
