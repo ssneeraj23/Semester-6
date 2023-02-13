@@ -122,7 +122,6 @@ void get_my_time_2(char *buffer)
 }
 void par(char *input, struct http_request *req)
 {
-    //printf("hi||");
     int len = strlen(input);
     char **tokens = divide_string(input, "\n");
     char requestt[MAX_LEN];
@@ -130,24 +129,9 @@ void par(char *input, struct http_request *req)
     sscanf(requestt, "%s", req->method);
     sscanf(requestt, "%*s %s", req->url);
     sscanf(requestt, "%*s %*s %s", req->filename);
-    //char sub[]=":";
     printf("hii");
-   
     char protocol[MAX_LEN];
     parse_url(&req->url, protocol, &req->host, &req->port, &req->path);
-    //char *ptr = strchr(req->url, ':');
-    //char* p;
-    //printf("%d", req->port);
-    // for(int i=0;i<strlen(req->url);i++){
-    //     if(req->url[i]==':'){
-    //         req->port = atoi(i+1);
-    //         break;
-    //     }
-    // }
-
-    // if(ptr){
-    //    req->port = atoi(ptr+1);
-    // }
     char *t;
     for (int i = 1; tokens[i]; i++)
     {
@@ -227,14 +211,10 @@ int recv_cli( int newsockfd, struct http_request *hr)
         if(fbyt!=-2)break;
         strcat(buf, recv_buf);
     }
-    
-     char buff[30000];
-    bzero(buff,30000);
-    strcpy(buff, buf);
-    printf("Response received for get is -----------------\n%s\n",buff);
+    printf("Response received for get is -----------------\n%s\n",buf);
     printf("HELLO||\n");
     struct http_request *sereq=(struct http_request *)malloc(sizeof(struct http_request ));
-    par(buff, sereq);
+    par(buf, sereq);
     printf("\n\nparsed\n\n");
     printf("%d\n", sereq->content_len);
     FILE *outfile;
@@ -263,28 +243,6 @@ char *get_file_extension(char *file)
     if (!dot || dot == file)
         return "";
     return dot + 1;
-}
-
-void send_cli(int sockfd, char *buf, int buf_len)
-{
-    char *start_ad = buf;
-    int ss = 0;
-    for (int i = 0; i < buf_len; ++i)
-    {
-        if ((i + 1) % send_size == 0)
-        {
-            send(sockfd, start_ad, send_size, 0);
-            start_ad = buf + i + 1;
-            ss = 0;
-            continue;
-        }
-        ++ss;
-        if (buf[i] == '\0')
-        {
-            send(sockfd, start_ad, ss, 0);
-            break;
-        }
-    }
 }
 
 int count_number_of_bytes(char buf[], char filename[])
@@ -417,7 +375,7 @@ void send_get(struct http_request *req, int sockfd, char *buf)
     get_my_time_2(date_f);
     strcat(request, date_f);
     send(sockfd, request, strlen(request), 0);
-    // printf("sent req is -----\n%s\n-----------n",request);
+    printf("sent req is\n%s \n-----\n",request);
     recv_cli(sockfd,req);
     return;
 
@@ -425,37 +383,16 @@ void send_get(struct http_request *req, int sockfd, char *buf)
 
 
 
-int main(int argc, char *argv[])
+int main()
 {
     int sockfd, newsockfd, clilen, l_port;
-    l_port = atoi(argv[1]);
     struct sockaddr_in serv_addr;
-    char servtime[64];
     char buff[10000];
     bzero(buff, 10000);
-    for (int i = 0; i < 10; i++)
-        servtime[i] = '\0';
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        perror("Cannot create socket\n");
-        exit(0);
-    }
-    serv_addr.sin_family = AF_INET;
-    inet_aton("127.0.0.1", &serv_addr.sin_addr);
-    serv_addr.sin_port = htons(l_port);
-
-    if ((connect(sockfd, (struct sockaddr *)&serv_addr,
-                 sizeof(serv_addr))) < 0)
-    {
-        perror("Unable to connect to server\n");
-        exit(0);
-    }
     printf("Connected\n");
     fgets(buff, 10000, stdin);
-
-
-     char fport[15];
-      char myport[15];
+    char fport[15];
+    char myport[15];
     strcpy(fport,"80");
     for(int i=0;i<strlen(buff);++i)
     {
@@ -476,12 +413,24 @@ int main(int argc, char *argv[])
     printf("%s is port\n",fport);
     struct http_request req;
     par(buff, &req);
+    printf("the host ip is %s\n",req.host);
     req.port = atoi(fport);
-    // printf("%s\n", req.url);
-    // printf("%s\n", req.host);
-    // printf("%s\n", req.path);
 
-    
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        perror("Cannot create socket\n");
+        exit(0);
+    }
+    serv_addr.sin_family = AF_INET;
+    inet_aton("127.0.0.1", &serv_addr.sin_addr);
+    serv_addr.sin_port = htons(req.port);
+    inet_aton(req.host, &serv_addr.sin_addr);
+    if ((connect(sockfd, (struct sockaddr *)&serv_addr,
+                 sizeof(serv_addr))) < 0)
+    {
+        perror("Unable to connect to server\n");
+        exit(0);
+    }
     if (strcmp("GET", req.method) == 0)
     {
         send_get(&req, sockfd, buff);
@@ -490,13 +439,6 @@ int main(int argc, char *argv[])
     {
         send_put(&req, sockfd, buff);
     }
-    // recv(sockfd, buff, 10000, 0);
-    // //recv(sockfd, buff, 10000, 0);
-    // printf("%s\n", buff);
-    // bzero(buff, 10000);
-    // recv(sockfd, buff, 10000, 0);
-    // printf("%s\n", buff);
-    // printf("\n");
     close(sockfd);
     return 0;
 }
