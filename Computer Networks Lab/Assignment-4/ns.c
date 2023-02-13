@@ -354,7 +354,7 @@ int send_any_file_text(int newsockfd, char buf[], char filename[])
 void handle_get(int cli_socket, struct http_request *req)
 {
     char *extension = get_file_extension(req->path);
-    printf("%s is file path\n", req->path);
+    // printf("%s is file path\n", req->path);
     int file = open(req->path, O_RDONLY);
     if (file == -1)
     {
@@ -416,6 +416,7 @@ void handle_get(int cli_socket, struct http_request *req)
     send(cli_socket, response, strlen(response) + 1, 0);
     send_any_file(cli_socket, buf, req->path);
 }
+
 int main(int argc, char *argv[])
 {
     int port = atoi(argv[1]);
@@ -432,7 +433,6 @@ int main(int argc, char *argv[])
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = htons(port);
-    // memset(address,si)
     if (bind(sockfd, (struct sockaddr *)&serv_addr,
              sizeof(serv_addr)) < 0)
     {

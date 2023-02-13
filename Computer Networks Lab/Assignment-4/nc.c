@@ -135,7 +135,6 @@ int recv_cli(char *buf, int newsockfd)
         strcat(buf, recv_buf);
         c += rs;
     }
-    // printf("AFTER ----------------------------------\n");
     return c;
 }
 char *get_file_extension(char *file)
@@ -188,6 +187,33 @@ int count_number_of_bytes(char buf[], char filename[])
     }
     return count;
 }
+int send_any_file(int newsockfd, char buf[], char filename[])
+{
+    bzero(buf, BUF_SIZE);
+    FILE *infile, *outfile;
+    char outfilename[] = "output";
+    infile = fopen(filename, "rb");
+    outfile = fopen(outfilename, "wb");
+    if (infile == NULL)
+    {
+        printf("Error: could not open file %s", filename);
+        return 1;
+    }
+    int t;
+    while ((t = fread(buf, 1, BUF_SIZE, infile)) > 0)
+    {
+        send(newsockfd, buf, t, 0);
+        fwrite(buf, 1, t, outfile);
+    }
+    fclose(infile);
+    fclose(outfile);
+    if (ferror(infile))
+    {
+        printf("Error reading file %s", filename);
+    }
+    bzero(buf, BUF_SIZE);
+    return 1;
+}
 void send_put(struct http_request *req, int sockfd, char *buf)
 {
     char request[response_size];
@@ -229,13 +255,14 @@ void send_put(struct http_request *req, int sockfd, char *buf)
     strcat(request, "Content-Length: ");
     char buff[BUF_SIZE] = {0};
     int x = count_number_of_bytes(buff, req->filename);
-    // strcat(response, itoa(x));
     char y[10];
     sprintf(y, "%d", x);
     strcat(request, y);
     strcat(request, "\n");
     send(sockfd, request, strlen(request), 0);
+    send_any_file(sockfd, date_f, req->filename);
 }
+
 void send_get(struct http_request *req, int sockfd, char *buf)
 {
     char request[response_size];
