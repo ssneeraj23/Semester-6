@@ -13,22 +13,15 @@
 #include <stdbool.h>
 
 #define SOCK_MyTCP 18
-int min(int a, int b)
-{
-     return a < b ? a : b;
-}
-typedef struct
-{
-     int sock;
-} MyTCP;
 
-MyTCP curr_socket;
-MyTCP main_socket;
+int curr_socket;
+int main_socket;
 char **send_message;
 char **received_message;
 int send_table_len, recv_table_len;
 int send_table_index, recv_table_index;
 pthread_t Recvt, Sendt;
+
 pthread_cond_t cond_recv = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_send = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_send_full = PTHREAD_COND_INITIALIZER;
@@ -36,15 +29,18 @@ pthread_cond_t cond_send_full = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mutex_recv = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_send = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_dummy1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t recvt_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t sendt_lock = PTHREAD_MUTEX_INITIALIZER;
 
-MyTCP my_socket(int domain, int type, int protocol);
-int my_bind(MyTCP mysockfd, const struct sockaddr *addr, socklen_t addrlen);
-int my_listen(MyTCP mysockfd, int backlog);
-MyTCP my_accept(MyTCP mysockfd, struct sockaddr *addr, socklen_t *addrlen);
-int my_connect(MyTCP mysockfd, const struct sockaddr *addr, socklen_t addrlen);
-int my_send(MyTCP mysockfd, const void *buf, size_t len, int flags);
-int my_recv(MyTCP mysockfd, void *buf, size_t len, int flags);
-int my_close(MyTCP mysockfd);
+int my_socket(int domain, int type, int protocol);
+int my_bind(int mysockfd, const struct sockaddr *addr, socklen_t addrlen);
+int my_listen(int mysockfd, int backlog);
+int my_accept(int mysockfd, struct sockaddr *addr, socklen_t *addrlen);
+int my_connect(int mysockfd, const struct sockaddr *addr, socklen_t addrlen);
+int my_send(int mysockfd, const void *buf, size_t len, int flags);
+int my_recv(int mysockfd, void *buf, size_t len, int flags);
+int my_close(int mysockfd);
+int min(int a, int b);
 
 int recv_cli(char *buf, int newsockfd)
 {
@@ -59,8 +55,9 @@ int recv_cli(char *buf, int newsockfd)
      int rs;
      while (1)
      {
-          rs=recv(newsockfd, t, 1, 0);
-          if(rs<=0)return rs;
+          rs = recv(newsockfd, t, 1, 0);
+          if (rs <= 0)
+               return rs;
           strcat(msg_len_str, t);
           if (t[0] == '\r')
                break;
@@ -71,7 +68,8 @@ int recv_cli(char *buf, int newsockfd)
      while (1)
      {
           rs = recv(newsockfd, recv_buf, min(recs, tbread), 0);
-          if(rs<=0)return rs;
+          if (rs <= 0)
+               return rs;
           recv_buf[rs] = '\0';
           strcat(buf, recv_buf);
           tbread -= rs;
@@ -92,13 +90,18 @@ void *R(void *arg)
           pthread_cond_wait(&cond_recv, &mutex_recv);
           while (1)
           {
+
+               pthread_mutex_lock(&recvt_lock);
                if (recv_table_len != 10)
                {
-                     rs=recv_cli( received_message[(recv_table_index+recv_table_len)%10], curr_socket.sock);
-                     if(rs<=0)break;
-                     ++recv_table_len;
+                    rs = recv_cli(received_message[(recv_table_index + recv_table_len) % 10], curr_socket);
+                    if (rs <= 0)
+                         break;
+                    ++recv_table_len;
                }
+               pthread_mutex_unlock(&recvt_lock);
           }
+          pthread_mutex_unlock(&mutex_recv);
      }
      return NULL;
 }
@@ -114,6 +117,7 @@ void *S(void *arg)
           pthread_cond_wait(&cond_send, &mutex_send);
           while (1)
           {
+               pthread_mutex_lock(&sendt_lock);
                if (send_table_len == 0)
                {
                     sleep(1);
@@ -132,14 +136,14 @@ void *S(void *arg)
                     tbsend = msg_len;
                     if (1000 - i - 1 >= tbsend)
                     {
-                         send(curr_socket.sock, send_message[send_table_index] + i + 1, tbsend, 0);
+                         send(curr_socket, send_message[send_table_index] + i + 1, tbsend, 0);
                          tbsend = 0;
                          send_table_index = (send_table_index + 1) % 10;
                          --send_table_len;
                     }
                     else
                     {
-                         send(curr_socket.sock, send_message[send_table_index] + i + 1, 1000 - i - 1, 0);
+                         send(curr_socket, send_message[send_table_index] + i + 1, 1000 - i - 1, 0);
                          tbsend = tbsend - 1000 + i + 1;
                          send_table_index = (send_table_index + 1) % 10;
                          --send_table_len;
@@ -149,48 +153,46 @@ void *S(void *arg)
                {
                     if (tbsend <= 1000)
                     {
-                         send(curr_socket.sock, send_message[send_table_index], tbsend, 0);
+                         send(curr_socket, send_message[send_table_index], tbsend, 0);
                          tbsend = 0;
                          send_table_index = (send_table_index + 1) % 10;
                          --send_table_len;
                     }
                     else
                     {
-                         send(curr_socket.sock, send_message[send_table_index], 1000, 0);
+                         send(curr_socket, send_message[send_table_index], 1000, 0);
                          tbsend -= 1000;
                          send_table_index = (send_table_index + 1) % 10;
                          --send_table_len;
                     }
                }
+               pthread_mutex_unlock(&sendt_lock);
           }
+          pthread_mutex_unlock(&mutex_send);
      }
      return NULL;
 }
 
-int main()
+int min(int a, int b)
 {
-
-     return 0;
+     return a < b ? a : b;
 }
-
-MyTCP my_socket(int domain, int type, int protocol)
+int my_socket(int domain, int type, int protocol)
 {
 
      if (type != SOCK_MyTCP)
      {
-          MyTCP mytcp;
-          mytcp.sock = -1;
-          return mytcp;
+          return -1;
      }
      else
      {
 
-          MyTCP mytcp;
-          mytcp.sock = socket(domain, SOCK_STREAM, protocol);
-          if (mytcp.sock < 0)
+          int sock;
+          sock = socket(domain, SOCK_STREAM, protocol);
+          if (sock < 0)
           {
-               mytcp.sock = -1;
-               return mytcp;
+               sock = -1;
+               return sock;
           }
           // allocate space for the tables
           send_message = (char **)malloc(10 * sizeof(char *));
@@ -209,22 +211,22 @@ MyTCP my_socket(int domain, int type, int protocol)
 
           pthread_attr_t attr;
           pthread_attr_init(&attr);
-          curr_socket = mytcp;
-          main_socket = mytcp;
+          curr_socket = sock;
+          main_socket = sock;
           pthread_create(&Sendt, &attr, R, NULL);
           pthread_create(&Recvt, &attr, S, NULL);
-          return mytcp;
+          return sock;
      }
 }
 
-int my_bind(MyTCP mysockfd, const struct sockaddr *addr, socklen_t addrlen)
+int my_bind(int mysockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
-     return bind(mysockfd.sock, addr, addrlen);
+     return bind(mysockfd, addr, addrlen);
 }
 
-int my_listen(MyTCP mysockfd, int backlog)
+int my_listen(int mysockfd, int backlog)
 {
-     int ret = listen(mysockfd.sock, backlog);
+     int ret = listen(mysockfd, backlog);
      if (ret < 0)
      {
           perror("Error in listen");
@@ -233,38 +235,45 @@ int my_listen(MyTCP mysockfd, int backlog)
      return ret;
 }
 
-MyTCP my_accept(MyTCP mysockfd, struct sockaddr *cli_addr, socklen_t *clilen)
+int my_accept(int mysockfd, struct sockaddr *cli_addr, socklen_t *clilen)
 {
-     MyTCP newsocktcp;
      int newsockfd;
-     newsockfd = accept(mysockfd.sock, (struct sockaddr *)&cli_addr, clilen);
+     newsockfd = accept(mysockfd, (struct sockaddr *)&cli_addr, clilen);
      if (newsockfd < 0)
      {
-          newsocktcp.sock = -1;
-          return newsocktcp;
+          newsockfd = -1;
+          return newsockfd;
      }
-     newsocktcp = curr_socket;
-     newsocktcp.sock = newsockfd;
-     curr_socket.sock = newsockfd;
+
+     curr_socket = newsockfd;
      // broadcast the signal
-     return newsocktcp;
+     pthread_cond_broadcast(&cond_recv);
+     pthread_cond_broadcast(&cond_send);
+     pthread_mutex_unlock(&mutex_recv);
+     pthread_mutex_unlock(&mutex_send);
+     return newsockfd;
 }
 
-int my_connect(MyTCP mysockfd, const struct sockaddr *addr, socklen_t addrlen)
+int my_connect(int mysockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
 
-     int res = connect(mysockfd.sock, addr, addrlen);
+     int res = connect(mysockfd, addr, addrlen);
      if (res == -1)
      {
           perror("Connection failed");
           return -1;
      }
+     curr_socket = mysockfd;
+     pthread_cond_broadcast(&cond_recv);
+     pthread_cond_broadcast(&cond_send);
+     pthread_mutex_unlock(&mutex_recv);
+     pthread_mutex_unlock(&mutex_send);
      return 0;
 }
 
-int my_close(MyTCP mysockfd)
+int my_close(int mysockfd)
 {
-     if (mysockfd.sock == main_socket.sock)
+     if (mysockfd == main_socket)
      {
           pthread_mutex_destroy(&mutex_send);
           pthread_mutex_destroy(&mutex_recv);
@@ -297,7 +306,7 @@ int my_close(MyTCP mysockfd)
                free(received_message);
           }
 
-          close(mysockfd.sock);
+          close(mysockfd);
      }
      else
      {
@@ -305,7 +314,7 @@ int my_close(MyTCP mysockfd)
      }
 }
 
-int my_send(MyTCP mysockfd, const void *buf, size_t len, int flags)
+int my_send(int mysockfd, const void *buf, size_t len, int flags)
 {
      char msg_len[4];
      bzero(msg_len, 4);
@@ -317,6 +326,7 @@ int my_send(MyTCP mysockfd, const void *buf, size_t len, int flags)
      {
           if (row_req == 0)
                break;
+          pthread_mutex_lock(&sendt_lock);
           if (send_table_len < 10)
           {
                // add to table
@@ -353,33 +363,37 @@ int my_send(MyTCP mysockfd, const void *buf, size_t len, int flags)
                --row_req;
                continue;
           }
-          return len;
-          pthread_mutex_lock(&mutex_dummy1);
-          pthread_cond_wait(&cond_send_full, &mutex_dummy1);
+          pthread_mutex_unlock(&sendt_lock);
+          // pthread_mutex_lock(&mutex_dummy1);
+          // pthread_cond_wait(&cond_send_full, &mutex_dummy1);
      }
+     return len;
 }
 
-int my_recv(MyTCP mysockfd, void *buf, size_t len, int flags)
+int my_recv(int mysockfd, void *buf, size_t len, int flags)
 {
 
      char msg_len[4];
-     bzero(msg_len, 4);
      int i = 0;
-     while (received_message[recv_table_index][i] != '\r')
-     {
-          msg_len[i] = received_message[recv_table_index % 10][i];
-          i++;
-     }
-     int num_of_bytes = atoi(msg_len);
-
+     int num_of_bytes;
      while (1)
      {
+          pthread_mutex_lock(&recvt_lock);
           if (recv_table_len <= 0)
           {
+               pthread_mutex_unlock(&recvt_lock);
                sleep(1);
           }
           else
           {
+               bzero(msg_len, 4);
+               i=0;
+               while (received_message[recv_table_index][i] != '\r')
+               {
+                    msg_len[i] = received_message[recv_table_index % 10][i];
+                    i++;
+               }
+               num_of_bytes = atoi(msg_len);
                if (len >= num_of_bytes)
                {
                     strcpy(buf, received_message[recv_table_index % 10] + i + 1);
@@ -391,6 +405,8 @@ int my_recv(MyTCP mysockfd, void *buf, size_t len, int flags)
                bzero(received_message[recv_table_index % 10], 5005);
                --recv_table_len;
                recv_table_index++;
+               pthread_mutex_lock(&recvt_lock);
+               break;
           }
      }
 }
