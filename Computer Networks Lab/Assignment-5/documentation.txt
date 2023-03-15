@@ -1,0 +1,67 @@
+The list of data structures used-
+
+int curr_socket: An integer variable used to represent the current socket.
+int main_socket: An integer variable used to store the main socket.
+char **send_message: A global 2D array used as a send table to store messages that need to be sent.
+char **received_message: A global 2D array used as a receive table to store received messages.
+int send_table_len, recv_table_len: Integer variables used to store the length of the send and receive tables, respectively.
+int send_table_index, recv_table_index: Integer variables used to store the index of the current position in the send and receive tables, respectively.
+pthread_t Recvt, Sendt: Pthread_t variables used to represent the receive and send threads, respectively.
+pthread_cond_t cond_recv, cond_send, cond_send_full: Pthread condition variables used for signaling between threads.
+pthread_mutex_t mutex_recv, mutex_send, mutex_dummy1, recvt_lock, sendt_lock: Pthread mutex variables used for synchronization between threads.
+
+int my_socket(int domain, int type, int protocol)->The my_socket function in the above code is a custom implementation of the socket function. It creates a new socket of the specified domain, type, and protocol, and returns a file descriptor for the socket. The function takes three arguments: domain specifies the communication domain, type specifies the socket type, and protocol specifies the protocol to be used. The function returns a file descriptor for the newly created socket, or -1 if an error occurred. The macro SOCK_MyTCP is defined as 18, which is used as the protocol value for the custom TCP protocol used in this code. This function also creates the Recvt and Sendt threads and initialises the send_message and received_message tables.
+
+int my_bind(int mysockfd, const struct sockaddr *addr, socklen_t addrlen) -> Inside the function, the bind() system call is called with the same arguments passed to my_bind(). The function simply returns the result of the bind() call, which is an integer indicating whether the operation was successful or not.
+
+int my_listen(int mysockfd, int backlog) -> The function my_listen is a wrapper function around the listen system call that sets up a socket to listen for incoming connections. It takes two arguments: the socket file descriptor mysockfd, and the maximum length of the queue of pending connections, backlog.
+
+int my_accept(int mysockfd, struct sockaddr *cli_addr, socklen_t *clilen) ->
+The my_accept function accepts a connection on a socket, and blocks until a client connects to the server. If successful, it returns the file descriptor of the accepted socket, which is a new socket used for communication with the connected client. If an error occurs, it returns -1.
+In addition to the standard accept function, my_accept also sets the global variable curr_socket to the newly accepted socket file descriptor, and signals any waiting threads using a condition variable(mutex_recv)
+
+int my_connect(int mysockfd, const struct sockaddr *addr, socklen_t addrlen) ->  This function attempts to connect a socket referred to by mysockfd to a remote address specified by addr and addrlen. If the connection is successful, it sets the global variable curr_socket to mysockfd and signals any waiting threads using the condition variable cond_recv.
+
+int my_close(int mysockfd) -> The my_close function takes an integer mysockfd as input, which is a socket file descriptor. If mysockfd is equal to the main socket file descriptor main_socket, the function performs the following operations:
+Destroys the send and receive mutexes and condition variables using pthread_mutex_destroy() and pthread_cond_destroy() respectively.Calls pthread_exit() to terminate the Sendt and Recvt threads.Frees the memory allocated for send_message and received_message.
+Closes the main socket using the close() function.
+If mysockfd is not equal to main_socket, the function simply closes the socket using the close() function and resets the send_table_len, recv_table_len, send_table_index, and recv_table_index variables to zero using the mutexes sendt_lock and recvt_lock. Note that the function should return an integer value, but the given implementation does not have a return statement.
+
+int my_send(int mysockfd, const void *buf, size_t len, int flags) -> The my_send function sends a message from the current socket to a connected socket. The function first calculates the size of the message, and then breaks it up into multiple rows (if required) and adds them to the send_message table which stores messages to be sent. It acquires a lock on the sendt_lock mutex before adding the message to the table to prevent concurrent modification. If the send_message table is already full, the function waits until there is space available. After the message is added to the table, the function waits for two seconds before returning the length of the data sent.
+
+int my_recv(int mysockfd, void *buff, size_t len, int flags) -> The my_recv function waits for messages to arrive in the received_message table, retrieves the messages from the table, and returns the requested data to the calling function.The code also uses mutex lock(recvt_lock) to ensure thread safety.
+
+int recv_cli(char *buf, int newsockfd) -> The recv_cli() function is used to receive messages from the server. The function reads the first character of each message to check if it is a question mark ('?'). If it is, it means that the message length is encoded in the following characters. The function reads the message length and then reads the message in chunks of size recs until the entire message is received.
+
+void *R(void *arg) -> The R() function is responsible for receiving messages. It waits for a signal from the main thread using the cond_recv condition variable. When it receives the signal, it calls the recv_cli() function to receive a message from the server. It then stores the message in the circular buffer.
+
+void *S(void *arg) -> The S() function is responsible for sending messages. It checks the circular buffer for messages that need to be sent. If there are no messages, it waits for a second before checking again. If there is a message to be sent, it sends the message in chunks of size 1000 until the entire message is sent.
+
+
+When a my_send call is made, the following sequence of events occur:
+my_send function is called with the necessary parameters.
+msg_len variable is initialized to zero and later updated with the length of the message to be sent.
+The size of the message and the additional metadata required to split the message into smaller parts are calculated.
+A loop runs until the entire message is split into small enough chunks that can be sent through the socket without exceeding the maximum message size.
+In each iteration of the loop, the current thread acquires a lock on the sendt_lock mutex to prevent multiple threads from accessing the send_message table at the same time.
+The function checks if there is space in the send_message table to add a new message.
+If there is space, the function adds the message to the table and updates the send_table_index and send_table_len variables accordingly.
+Once the message has been added to the table, the thread releases the lock on the sendt_lock mutex.
+After all the chunks of the message have been added to the send_message table, the function waits for 2 seconds to ensure that all the chunks have been transmitted.
+The function returns the length of the message that was sent.
+
+When a my_recv call is made, the following sequence of events occur:
+my_recv function is called with the necessary parameters.
+The function initializes msg_len and num_of_bytes variables to zero and later updates msg_len to the length of the message to be received.
+The function loops until a message is received.
+In each iteration of the loop, the current thread acquires a lock on the recvt_lock mutex to prevent multiple threads from accessing the received_message table at the same time.
+The function checks if there are any messages in the received_message table to be received.
+If there are messages, the function extracts the first message in the table and updates the recv_table_index and recv_table_len variables accordingly.
+Once the message has been extracted from the table, the thread releases the lock on the recvt_lock mutex.
+The function copies the message from the extracted slot in the received_message table to the buffer passed to the my_recv function.
+The function updates the num_of_bytes variable with the length of the received message.
+The function clears the extracted slot in the received_message table.
+The function decrements the recv_table_len variable by 1.
+The function updates the recv_table_index variable to point to the next slot in the received_message table.
+The function returns the number of bytes received.
+
