@@ -18,8 +18,8 @@ int curr_socket;
 int main_socket;
 char **send_message;
 char **received_message;
-int send_table_len=0, recv_table_len=0;
-int send_table_index=0, recv_table_index=0;
+int send_table_len = 0, recv_table_len = 0;
+int send_table_index = 0, recv_table_index = 0;
 pthread_t Recvt, Sendt;
 
 pthread_cond_t cond_recv = PTHREAD_COND_INITIALIZER;
@@ -48,24 +48,25 @@ int recv_cli(char *buf, int newsockfd)
      char msg_len_str[5];
      bzero(msg_len_str, 5);
      char t[2];
-     t[1]='\0';
+     t[1] = '\0';
      char recv_buf[recs + 1];
      for (int i = 0; i < recs; ++i)
           recv_buf[i] = '\0';
      int c = 0;
-     int rs=0;
+     int rs = 0;
      while (1)
      {
-          rs=recv(newsockfd, t, 1, 0);
-          if(rs<=0)return rs;
+          rs = recv(newsockfd, t, 1, 0);
+          if (rs <= 0)
+               return rs;
           if (t[0] == '?')
           {
                break;
-          }             
-          strcat(msg_len_str, t);     
+          }
+          strcat(msg_len_str, t);
      }
      int msg_len = atoi(msg_len_str);
-     strcat(msg_len_str, t); 
+     strcat(msg_len_str, t);
      strcat(buf, msg_len_str);
      int tbread = msg_len;
      while (1)
@@ -84,7 +85,6 @@ int recv_cli(char *buf, int newsockfd)
      return c;
 }
 
-
 void *R(void *arg)
 {
      int rs;
@@ -96,7 +96,7 @@ void *R(void *arg)
           while (1)
           {
                pthread_mutex_lock(&recvt_lock);
-               bzero(temp,5005);
+               bzero(temp, 5005);
                if (recv_table_len != 10)
                {
                     pthread_mutex_unlock(&recvt_lock);
@@ -106,7 +106,7 @@ void *R(void *arg)
                          break;
                     }
                     pthread_mutex_lock(&recvt_lock);
-                    strcpy(received_message[(recv_table_index + recv_table_len) % 10],temp);
+                    strcpy(received_message[(recv_table_index + recv_table_len) % 10], temp);
                     ++recv_table_len;
                }
                pthread_mutex_unlock(&recvt_lock);
@@ -117,7 +117,7 @@ void *R(void *arg)
 }
 
 void *S(void *arg)
-{        
+{
      int tbsend = 0;
      int msg_len, i;
      char msg_len_str[4];
@@ -132,7 +132,7 @@ void *S(void *arg)
                     sleep(1);
                     continue;
                }
-               
+
                if (tbsend == 0)
                {
                     bzero(msg_len_str, 4);
@@ -144,17 +144,17 @@ void *S(void *arg)
                     }
                     msg_len = atoi(msg_len_str);
                     tbsend = msg_len;
-                    send(curr_socket, send_message[send_table_index], i+1, 0);
+                    send(curr_socket, send_message[send_table_index], i + 1, 0);
                     if (1000 - i - 1 >= tbsend)
-                    {    
-                         int ss=send(curr_socket, send_message[send_table_index] + i + 1, tbsend, 0);
+                    {
+                         int ss = send(curr_socket, send_message[send_table_index] + i + 1, tbsend, 0);
                          tbsend = 0;
                          send_table_index = (send_table_index + 1) % 10;
                          --send_table_len;
                     }
                     else
                     {
-                         int ss=send(curr_socket, send_message[send_table_index] + i + 1, 1000 - i - 1, 0);
+                         int ss = send(curr_socket, send_message[send_table_index] + i + 1, 1000 - i - 1, 0);
                          tbsend = tbsend - 1000 + i + 1;
                          send_table_index = (send_table_index + 1) % 10;
                          --send_table_len;
@@ -225,8 +225,10 @@ int my_socket(int domain, int type, int protocol)
           main_socket = sock;
           pthread_create(&Sendt, &attr, R, NULL);
           pthread_create(&Recvt, &attr, S, NULL);
-          send_table_len=0; recv_table_len=0;
-          send_table_index=0;recv_table_index=0;
+          send_table_len = 0;
+          recv_table_len = 0;
+          send_table_index = 0;
+          recv_table_index = 0;
           return sock;
      }
 }
@@ -258,7 +260,7 @@ int my_accept(int mysockfd, struct sockaddr *cli_addr, socklen_t *clilen)
      }
 
      curr_socket = newsockfd;
-     
+
      sleep(1);
      pthread_mutex_lock(&mutex_recv);
      pthread_cond_broadcast(&cond_recv);
@@ -324,24 +326,26 @@ int my_close(int mysockfd)
           close(mysockfd);
           pthread_mutex_lock(&sendt_lock);
           pthread_mutex_lock(&recvt_lock);
-          send_table_len=0; recv_table_len=0;
-          send_table_index=0;recv_table_index=0;
+          send_table_len = 0;
+          recv_table_len = 0;
+          send_table_index = 0;
+          recv_table_index = 0;
           pthread_mutex_unlock(&sendt_lock);
           pthread_mutex_unlock(&recvt_lock);
-          
-          
      }
 }
 
 int my_send(int mysockfd, const void *buf, size_t len, int flags)
-{    
+{
      char msg_len[4];
      bzero(msg_len, 4);
      sprintf(msg_len, "%d", (int)len);
-     int biglen=len + 1 + strlen(msg_len);
+     int biglen = len + 1 + strlen(msg_len);
      int row_req;
-     if(biglen%1000==0)row_req=biglen/1000;
-     else row_req=(biglen/1000)+1;
+     if (biglen % 1000 == 0)
+          row_req = biglen / 1000;
+     else
+          row_req = (biglen / 1000) + 1;
      int first = 0;
      int ind = 0;
      while (1)
@@ -392,15 +396,15 @@ int my_send(int mysockfd, const void *buf, size_t len, int flags)
 
 int my_recv(int mysockfd, void *buff, size_t len, int flags)
 {
-    char *  buf=(char*)buff;
-    sleep(3);
+     char *buf = (char *)buff;
+     sleep(3);
      char msg_len[4];
      int i = 0;
      int num_of_bytes;
      while (1)
      {
           pthread_mutex_lock(&recvt_lock);
-          if (recv_table_len <=0)
+          if (recv_table_len <= 0)
           {
                pthread_mutex_unlock(&recvt_lock);
                sleep(1);
@@ -408,7 +412,7 @@ int my_recv(int mysockfd, void *buff, size_t len, int flags)
           else
           {
                bzero(msg_len, 4);
-               i=0;
+               i = 0;
                while (received_message[recv_table_index][i] != '?')
                {
                     msg_len[i] = received_message[recv_table_index % 10][i];
@@ -425,10 +429,17 @@ int my_recv(int mysockfd, void *buff, size_t len, int flags)
                }
                bzero(received_message[recv_table_index % 10], 5005);
                --recv_table_len;
-               recv_table_index=(recv_table_index+1)%10;
+               recv_table_index = (recv_table_index + 1) % 10;
                pthread_mutex_unlock(&recvt_lock);
                break;
           }
      }
-     return len;
+     if (len >= num_of_bytes)
+     {
+          return num_of_bytes;
+     }
+     else
+     {
+          return len;
+     }
 }
