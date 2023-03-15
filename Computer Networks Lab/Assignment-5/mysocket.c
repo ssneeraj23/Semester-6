@@ -18,8 +18,8 @@ int curr_socket;
 int main_socket;
 char **send_message;
 char **received_message;
-int send_table_len=0, recv_table_len=0;
-int send_table_index=0, recv_table_index=0;
+int send_table_len = 0, recv_table_len = 0;
+int send_table_index = 0, recv_table_index = 0;
 pthread_t Recvt, Sendt;
 
 pthread_cond_t cond_recv = PTHREAD_COND_INITIALIZER;
@@ -44,41 +44,31 @@ int min(int a, int b);
 
 int recv_cli(char *buf, int newsockfd)
 {
-    printf("I'm here you bitch\n");
      int recs = 100;
      char msg_len_str[5];
      bzero(msg_len_str, 5);
      char t[2];
-     t[1]='\0';
+     t[1] = '\0';
      char recv_buf[recs + 1];
      for (int i = 0; i < recs; ++i)
           recv_buf[i] = '\0';
      int c = 0;
-     int rs=0;
-     // rs=recv(newsockfd,buf,100,0);
-     // printf("buf is %s -------\n",buf);
-     // sleep(100);
+     int rs = 0;
      while (1)
      {
-          rs+=recv(newsockfd, t, 1, 0);
-          printf("rs is %d and chat is %c \n",rs,t[0]);
+          rs += recv(newsockfd, t, 1, 0);
           if (rs <= 0)
                return rs;
-          
+
           if (t[0] == '?')
           {
-               printf("back  r \n");
                break;
           }
-               
-          strcat(msg_len_str, t);     
-          printf("stcat don e is %s\n",msg_len_str);
+
+          strcat(msg_len_str, t);
      }
-     printf("1st while in recv_cli and msg_len - %s\n", msg_len_str);
      int msg_len = atoi(msg_len_str);
-     strcat(msg_len_str, t); 
-     if(msg_len_str[2]=='?')printf("it is there\n");
-     printf("msg len is %d\n",msg_len);
+     strcat(msg_len_str, t);
      strcat(buf, msg_len_str);
      int tbread = msg_len;
      while (1)
@@ -94,11 +84,8 @@ int recv_cli(char *buf, int newsockfd)
                break;
      }
      c += strlen(msg_len_str);
-     printf("%s is culptit\n",buf);
-     if(buf[2]=='?')printf("sending back r man**********\n");
      return c;
 }
-
 
 void *R(void *arg)
 {
@@ -112,15 +99,13 @@ void *R(void *arg)
           while (1)
           {
                pthread_mutex_lock(&recvt_lock);
-               bzero(temp,5005);
+               bzero(temp, 5005);
                if (recv_table_len != 10)
                {
                     pthread_mutex_unlock(&recvt_lock);
                     rs = recv_cli(temp, curr_socket);
                     pthread_mutex_lock(&recvt_lock);
-                    strcpy(received_message[(recv_table_index + recv_table_len) % 10],temp);
-                    printf("message received %s\n", received_message[(recv_table_index + recv_table_len) % 10]);
-                    printf("in r thread rs is -----%d\n",rs);
+                    strcpy(received_message[(recv_table_index + recv_table_len) % 10], temp);
                     if (rs <= 0)
                          break;
                     ++recv_table_len;
@@ -133,8 +118,8 @@ void *R(void *arg)
 }
 
 void *S(void *arg)
-{    
-     
+{
+
      int tbsend = 0;
      int msg_len, i;
      char msg_len_str[4];
@@ -146,19 +131,15 @@ void *S(void *arg)
           while (1)
           {
                pthread_mutex_lock(&sendt_lock);
-               printf("st len is %d==========\n",send_table_len);
                if (send_table_len == 0)
                {
-                    
-                    printf("waiting|| in send thread\n");
                     pthread_mutex_unlock(&sendt_lock);
                     sleep(1);
                     continue;
                }
-               
+
                if (tbsend == 0)
                {
-                    printf(" is curr_sock%d\n", curr_socket);
                     bzero(msg_len_str, 4);
                     i = 0;
                     while (send_message[send_table_index][i] != '?')
@@ -168,20 +149,17 @@ void *S(void *arg)
                     }
                     msg_len = atoi(msg_len_str);
                     tbsend = msg_len;
-                    send(curr_socket, send_message[send_table_index], i+1, 0);
+                    send(curr_socket, send_message[send_table_index], i + 1, 0);
                     if (1000 - i - 1 >= tbsend)
-                    {    
-                         int ss=send(curr_socket, send_message[send_table_index] + i + 1, tbsend, 0);
-                         
-                         printf("sent size is in thread is %d\n",ss);
+                    {
+                         int ss = send(curr_socket, send_message[send_table_index] + i + 1, tbsend, 0);
                          tbsend = 0;
                          send_table_index = (send_table_index + 1) % 10;
                          --send_table_len;
                     }
                     else
                     {
-                         int ss=send(curr_socket, send_message[send_table_index] + i + 1, 1000 - i - 1, 0);
-                         printf("sent size is in thread is %d\n",ss);
+                         int ss = send(curr_socket, send_message[send_table_index] + i + 1, 1000 - i - 1, 0);
                          tbsend = tbsend - 1000 + i + 1;
                          send_table_index = (send_table_index + 1) % 10;
                          --send_table_len;
@@ -253,8 +231,10 @@ int my_socket(int domain, int type, int protocol)
           main_socket = sock;
           pthread_create(&Sendt, &attr, R, NULL);
           pthread_create(&Recvt, &attr, S, NULL);
-          send_table_len=0; recv_table_len=0;
-          send_table_index=0;recv_table_index=0;
+          send_table_len = 0;
+          recv_table_len = 0;
+          send_table_index = 0;
+          recv_table_index = 0;
           return sock;
      }
 }
@@ -359,16 +339,16 @@ int my_close(int mysockfd)
 }
 
 int my_send(int mysockfd, const void *buf, size_t len, int flags)
-{    
+{
      char msg_len[4];
      bzero(msg_len, 4);
      sprintf(msg_len, "%d", (int)len);
-     int biglen=len + 1 + strlen(msg_len);
+     int biglen = len + 1 + strlen(msg_len);
      int row_req;
-     if(biglen%1000==0)row_req=biglen/1000;
-     else row_req=(biglen/1000)+1;
-     // int row_req = ceill((len + 1 + strlen(msg_len))*1.00 / 1000);
-     printf("rows req - %d\n", row_req);
+     if (biglen % 1000 == 0)
+          row_req = biglen / 1000;
+     else
+          row_req = (biglen / 1000) + 1;
      int first = 0;
      int ind = 0;
      while (1)
@@ -376,14 +356,12 @@ int my_send(int mysockfd, const void *buf, size_t len, int flags)
           if (row_req == 0)
                break;
           pthread_mutex_lock(&sendt_lock);
-          printf("got lock\n");
           if (send_table_len < 10)
           {
                // add to table
                if (first == 0)
                {
                     first = 1;
-                    printf("yes first is 0\n");
                     strcpy(send_message[(send_table_index + send_table_len) % 10], msg_len);
                     strcat(send_message[send_table_index], "?");
 
@@ -397,7 +375,6 @@ int my_send(int mysockfd, const void *buf, size_t len, int flags)
                          strcat(send_message[(send_table_index + send_table_len) % 10], buf);
                     }
                     send_table_len++;
-                    printf("send table size is updated and is %d-----------\n",send_table_len);
                }
                else
                {
@@ -415,37 +392,32 @@ int my_send(int mysockfd, const void *buf, size_t len, int flags)
                --row_req;
           }
           pthread_mutex_unlock(&sendt_lock);
-          // pthread_mutex_lock(&mutex_dummy1);
-          // pthread_cond_wait(&cond_send_full, &mutex_dummy1);
      }
      return len;
 }
 
 int my_recv(int mysockfd, void *buff, size_t len, int flags)
 {
-    char *  buf=(char*)buff;
-    printf("my_recv started\n");
+     char *buf = (char *)buff;
      char msg_len[4];
      int i = 0;
      int num_of_bytes;
      while (1)
      {
           pthread_mutex_lock(&recvt_lock);
-          if (recv_table_len <=0)
+          if (recv_table_len <= 0)
           {
                pthread_mutex_unlock(&recvt_lock);
-               printf("waiting for table\n");
                sleep(1);
           }
           else
           {
                bzero(msg_len, 4);
-               i=0;
+               i = 0;
                while (received_message[recv_table_index][i] != '?')
                {
                     msg_len[i] = received_message[recv_table_index % 10][i];
                     i++;
-                    printf("broken heart\n");
                }
                num_of_bytes = atoi(msg_len);
                if (len >= num_of_bytes)
@@ -456,13 +428,20 @@ int my_recv(int mysockfd, void *buff, size_t len, int flags)
                {
                     strncpy(buf, received_message[recv_table_index % 10] + i + 1, len);
                }
-               printf("num bytes are %d\n and buf in myrecv is %s\n",num_of_bytes,buf);
+
                bzero(received_message[recv_table_index % 10], 5005);
                --recv_table_len;
-               recv_table_index=(recv_table_index+1)%10;
+               recv_table_index = (recv_table_index + 1) % 10;
                pthread_mutex_unlock(&recvt_lock);
                break;
           }
      }
-     return len;
+     if (len >= num_of_bytes)
+     {
+          return num_of_bytes;
+     }
+     else
+     {
+          return len;
+     }
 }
