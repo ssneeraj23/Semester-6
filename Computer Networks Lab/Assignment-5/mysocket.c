@@ -299,6 +299,7 @@ int my_close(int mysockfd)
 {
      if (mysockfd == main_socket)
      {
+          printf("threads killed\n");
           pthread_mutex_destroy(&mutex_send);
           pthread_mutex_destroy(&mutex_recv);
           pthread_cond_destroy(&cond_send);
@@ -316,7 +317,6 @@ int my_close(int mysockfd)
                }
                free(send_message);
           }
-
           // Free received_message
           if (received_message != NULL)
           {
@@ -336,6 +336,7 @@ int my_close(int mysockfd)
      {
           // tharavatha rastha
      }
+     return 0;
 }
 
 int my_send(int mysockfd, const void *buf, size_t len, int flags)

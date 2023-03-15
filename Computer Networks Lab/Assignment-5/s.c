@@ -56,8 +56,9 @@ int main(int argc, char **argv)
         sleep(2);
         rs = my_send(newsockfd, mytime, strlen(mytime), 0);
         printf("message sent from server is %s and length is %d\n", mytime, rs);
-        sleep(100);
+        break;
+        sleep(1);
     }
-    close(sockfd);
+    my_close(sockfd);
     return 0;
 }
